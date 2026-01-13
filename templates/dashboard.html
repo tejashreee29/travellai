@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - TravelPlan</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <h1>✈️ TravelPlan</h1>
+        <div>
+            <span>Welcome, <strong>{{ user }}</strong></span>
+            <a href="/logout">Sign Out</a>
+        </div>
+    </header>
+
+    <div class="dashboard-container" style="max-width: 1400px; margin: 0 auto; padding: 2rem;">
+        {% if preferences or travel_history or saved_destinations %}
+        <div class="profile-section">
+            <h2>Your Travel Profile</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="number">{{ travel_history|length if travel_history else 0 }}</div>
+                    <div class="label">Trips Planned</div>
+                </div>
+                <div class="stat-card">
+                    <div class="number">{{ saved_destinations|length if saved_destinations else 0 }}</div>
+                    <div class="label">Saved Destinations</div>
+                </div>
+                <div class="stat-card">
+                    <div class="number">{{ preferences.travel_type if preferences and preferences.travel_type else 'N/A' }}</div>
+                    <div class="label">Preferred Type</div>
+                </div>
+                <div class="stat-card">
+                    <div class="number">{{ preferences.budget_preference if preferences and preferences.budget_preference else 'N/A' }}</div>
+                    <div class="label">Budget Preference</div>
+                </div>
+            </div>
+
+            {% if travel_history %}
+            <div style="margin-top: 2rem;">
+                <h3 style="margin-bottom: 1rem; color: var(--text-dark);">Recent Travel History</h3>
+                <ul class="history-list">
+                    {% for trip in travel_history %}
+                    <li class="history-item">
+                        <div>
+                            <strong>{{ trip.destination }}</strong>
+                            <div style="color: var(--text-light); font-size: 0.875rem; margin-top: 0.25rem;">
+                                {{ trip.travel_type|title if trip.travel_type else 'N/A' }} • {{ trip.budget|title if trip.budget else 'N/A' }} • {{ trip.start_date }} to {{ trip.end_date }}
+                            </div>
+                        </div>
+                        <form method="post" action="/delete_travel/{{ trip.id }}" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this travel history?');">
+                            <button type="submit" style="background: #e74c3c; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; font-size: 0.875rem;">Delete</button>
+                        </form>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+
+            {% if saved_destinations %}
+            <div style="margin-top: 2rem;">
+                <h3 style="margin-bottom: 1rem; color: var(--text-dark);">Saved Destinations</h3>
+                <div class="results-grid" style="margin-top: 1rem;">
+                    {% for dest in saved_destinations %}
+                    <div class="destination-card" style="margin-bottom: 1rem;">
+                        <h3 style="margin-bottom: 0.5rem; font-size: 1.2rem;">{{ dest.city }}, {{ dest.country }}</h3>
+                        <div class="score" style="margin-bottom: 0.75rem;">AI Score: {{ "%.2f"|format(dest.score) if dest.score else 'N/A' }}</div>
+                        
+                        {% if dest.description %}
+                        <div style="margin-top: 0.75rem; padding: 0.75rem; background: var(--bg-light); border-radius: 6px; border-left: 3px solid var(--primary-color);">
+                            <p style="color: var(--text-dark); line-height: 1.6; margin: 0; font-size: 0.9rem;">
+                                {{ dest.description }}
+                            </p>
+                        </div>
+                        {% endif %}
+                        
+                        {% if dest.ideal_time %}
+                        <div style="margin-top: 0.75rem; padding: 0.75rem; background: #e3f2fd; border-radius: 6px; border-left: 3px solid #2193b0;">
+                            <p style="color: var(--primary-color); margin: 0; font-size: 0.9rem; font-weight: 600;">
+                                📅 {{ dest.ideal_time }}
+                            </p>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <div class="dashboard">
+            <a class="card" href="/destinations" style="background: linear-gradient(135deg, #2193b0 0%, #197896 100%); color: white;">
+                <h3>🌍 Destinations</h3>
+                <p>Discover AI-recommended destinations and plan your itinerary</p>
+            </a>
+            
+            <a class="card" href="/food" style="background: linear-gradient(135deg, #2193b0 0%, #6dd5ed 100%); color: white;">
+                <h3>🍽️ Food</h3>
+                <p>Explore local cuisines and dining options</p>
+            </a>
+            
+            <a class="card" href="/transport" style="background: linear-gradient(135deg, #197896 0%, #2193b0 100%); color: white;">
+                <h3>🚌 Transport</h3>
+                <p>Find transportation options and routes</p>
+            </a>
+            
+            <a class="card" href="/weather" style="background: linear-gradient(135deg, #6dd5ed 0%, #2193b0 100%); color: white;">
+                <h3>🌤️ Weather</h3>
+                <p>Check weather forecasts for your destinations</p>
+            </a>
+            
+            <a class="card" href="/currency" style="background: linear-gradient(135deg, #2193b0 0%, #197896 100%); color: white;">
+                <h3>💱 Currency</h3>
+                <p>Currency converter and exchange rates</p>
+            </a>
+            
+            <a class="card" href="/translator" style="background: linear-gradient(135deg, #6dd5ed 0%, #197896 100%); color: white;">
+                <h3>🌐 Language</h3>
+                <p>Translate and learn local phrases</p>
+            </a>
+            
+            <a class="card" href="/wallet" style="background: linear-gradient(135deg, #197896 0%, #2193b0 100%); color: white;">
+                <h3>💼 My Wallet</h3>
+                <p>All your travel bookings and cards in one place</p>
+            </a>
+        </div>
+    </div>
+
+    <div id="chatbot"></div>
+
+    <script src="/static/chatbot.js"></script>
+</body>
+</html>

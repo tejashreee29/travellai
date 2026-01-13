@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Wallet - TravelPlan</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .wallet-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        .wallet-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+        
+        .add-item-btn {
+            background: linear-gradient(135deg, #2193b0 0%, #197896 100%);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: transform 0.2s;
+        }
+        
+        .add-item-btn:hover {
+            transform: translateY(-2px);
+        }
+        
+        .wallet-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+        
+        .wallet-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+            position: relative;
+            border-left: 4px solid var(--primary-color);
+        }
+        
+        .wallet-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 12px rgba(0, 0, 0, 0.15);
+        }
+        
+        .wallet-card.booking {
+            border-left-color: #2193b0;
+        }
+        
+        .wallet-card.destination {
+            border-left-color: #6dd5ed;
+        }
+        
+        .wallet-card.card {
+            border-left-color: #197896;
+        }
+        
+        .wallet-card.other {
+            border-left-color: #2193b0;
+        }
+        
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 1rem;
+        }
+        
+        .card-type {
+            background: rgba(33, 147, 176, 0.1);
+            color: #2193b0;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            margin-bottom: 0.5rem;
+        }
+        
+        .card-description {
+            color: var(--text-light);
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+            line-height: 1.5;
+        }
+        
+        .card-details {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .card-detail-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+            color: var(--text-dark);
+        }
+        
+        .card-detail-item strong {
+            color: var(--text-light);
+            min-width: 80px;
+        }
+        
+        .card-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid #e0e0e0;
+        }
+        
+        .card-amount {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary-color);
+        }
+        
+        .card-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .card-action-btn {
+            background: transparent;
+            border: 1px solid #e0e0e0;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: all 0.2s;
+        }
+        
+        .card-action-btn.delete {
+            color: #e74c3c;
+            border-color: #e74c3c;
+        }
+        
+        .card-action-btn.delete:hover {
+            background: #e74c3c;
+            color: white;
+        }
+        
+        .empty-wallet {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: var(--text-light);
+        }
+        
+        .empty-wallet-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 1rem;
+            box-sizing: border-box;
+        }
+        
+        .modal-content {
+            background-color: white;
+            margin: 1rem auto;
+            padding: 0;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 500px;
+            max-height: calc(100vh - 2rem);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem 2rem;
+            border-bottom: 1px solid #e0e0e0;
+            flex-shrink: 0;
+            background: white;
+            border-radius: 12px 12px 0 0;
+        }
+        
+        .close-modal {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--text-light);
+        }
+        
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--text-dark);
+            font-weight: 600;
+        }
+        
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+        
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+        
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+        
+        .modal-body {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 1.5rem 2rem;
+            min-height: 0;
+        }
+        
+        .form-actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+            padding: 1.5rem 2rem;
+            border-top: 1px solid #e0e0e0;
+            flex-shrink: 0;
+            background: white;
+            border-radius: 0 0 12px 12px;
+        }
+        
+        /* Custom scrollbar for modal body */
+        .modal-body::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .modal-body::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+        
+        .modal-body::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+        
+        .modal-body::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        
+        /* Custom scrollbar for modal container */
+        .modal::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .modal::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        .modal::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+        }
+        
+        .modal::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.5);
+        }
+        
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #2193b0 0%, #197896 100%);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        
+        .btn-secondary {
+            background: #f5f5f5;
+            color: var(--text-dark);
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>✈️ TravelPlan</h1>
+        <div>
+            <span>Welcome, <strong>{{ user }}</strong></span>
+            <a href="/dashboard">Dashboard</a> | 
+            <a href="/logout">Sign Out</a>
+        </div>
+    </header>
+
+    <div class="wallet-container">
+        <div class="wallet-header">
+            <div>
+                <h2 style="margin: 0; color: var(--text-dark);">💼 My Wallet</h2>
+                <p style="color: var(--text-light); margin-top: 0.5rem;">All your travel bookings and cards in one place</p>
+            </div>
+            <button class="add-item-btn" onclick="openAddModal()">+ Add Item</button>
+        </div>
+
+        {% if wallet_items and wallet_items|length > 0 %}
+        <div class="wallet-cards">
+            {% for item in wallet_items %}
+            <div class="wallet-card {{ item.item_type }}">
+                <div class="card-header">
+                    <div>
+                        <div class="card-type">{{ item.item_type }}</div>
+                        <div class="card-title">{{ item.title }}</div>
+                    </div>
+                </div>
+                
+                {% if item.description %}
+                <div class="card-description">{{ item.description }}</div>
+                {% endif %}
+                
+                <div class="card-details">
+                    {% if item.item_type == 'card' and item.metadata_parsed %}
+                    {% set card_data = item.metadata_parsed %}
+                    {% if card_data.cardholder_name %}
+                    <div class="card-detail-item">
+                        <strong>👤 Cardholder:</strong>
+                        <span>{{ card_data.cardholder_name }}</span>
+                    </div>
+                    {% endif %}
+                    {% if card_data.card_number %}
+                    <div class="card-detail-item">
+                        <strong>💳 Card:</strong>
+                        <span>
+                            {% set card_num = card_data.card_number.replace(' ', '') %}
+                            {% if card_num|length >= 4 %}
+                                **** **** **** {{ card_num[-4:] }}
+                            {% else %}
+                                **** **** **** ****
+                            {% endif %}
+                        </span>
+                    </div>
+                    {% endif %}
+                    {% if card_data.expiry_date %}
+                    <div class="card-detail-item">
+                        <strong>📅 Expires:</strong>
+                        <span>{{ card_data.expiry_date }}</span>
+                    </div>
+                    {% endif %}
+                    {% if card_data.card_type %}
+                    <div class="card-detail-item">
+                        <strong>Type:</strong>
+                        <span>{{ card_data.card_type|title }}</span>
+                    </div>
+                    {% endif %}
+                    {% if card_data.bank_name %}
+                    <div class="card-detail-item">
+                        <strong>🏦 Bank:</strong>
+                        <span>{{ card_data.bank_name }}</span>
+                    </div>
+                    {% endif %}
+                    {% elif item.item_type == 'booking' and item.metadata_parsed %}
+                    {% set booking_data = item.metadata_parsed %}
+                    {% if booking_data.booking_type %}
+                    <div class="card-detail-item">
+                        <strong>📋 Type:</strong>
+                        <span>{{ booking_data.booking_type|replace('_', ' ')|title }}</span>
+                    </div>
+                    {% endif %}
+                    {% if booking_data.booking_reference %}
+                    <div class="card-detail-item">
+                        <strong>🔖 Reference:</strong>
+                        <span>{{ booking_data.booking_reference }}</span>
+                    </div>
+                    {% endif %}
+                    {% if booking_data.provider %}
+                    <div class="card-detail-item">
+                        <strong>🏢 Provider:</strong>
+                        <span>{{ booking_data.provider }}</span>
+                    </div>
+                    {% endif %}
+                    {% endif %}
+                    
+                    {% if item.destination %}
+                    <div class="card-detail-item">
+                        <strong>📍 Destination:</strong>
+                        <span>{{ item.destination }}</span>
+                    </div>
+                    {% endif %}
+                    
+                    {% if item.start_date %}
+                    <div class="card-detail-item">
+                        <strong>📅 Start:</strong>
+                        <span>{{ item.start_date }}</span>
+                    </div>
+                    {% endif %}
+                    
+                    {% if item.end_date %}
+                    <div class="card-detail-item">
+                        <strong>📅 End:</strong>
+                        <span>{{ item.end_date }}</span>
+                    </div>
+                    {% endif %}
+                    
+                    {% if item.status %}
+                    <div class="card-detail-item">
+                        <strong>Status:</strong>
+                        <span style="color: {% if item.status == 'active' %}green{% elif item.status == 'completed' %}blue{% else %}gray{% endif %};">
+                            {{ item.status|title }}
+                        </span>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <div class="card-footer">
+                    {% if item.amount %}
+                    <div class="card-amount">
+                        {{ item.currency }} {{ "%.2f"|format(item.amount) }}
+                    </div>
+                    {% else %}
+                    <div></div>
+                    {% endif %}
+                    
+                    <div class="card-actions">
+                        <button class="card-action-btn delete" onclick="removeItem({{ item.id }})">
+                            🗑️ Remove
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-wallet">
+            <div class="empty-wallet-icon">💼</div>
+            <h3>Your wallet is empty</h3>
+            <p>Start adding your travel bookings, saved destinations, and cards to keep everything organized in one place.</p>
+            <button class="add-item-btn" onclick="openAddModal()" style="margin-top: 1rem;">+ Add Your First Item</button>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Add Item Modal -->
+    <div id="addModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 style="margin: 0;">Add to Wallet</h3>
+                <button class="close-modal" onclick="closeAddModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+            <form id="addItemForm" style="margin: 0;">
+                <div class="form-group">
+                    <label for="item_type">Item Type *</label>
+                    <select id="item_type" name="item_type" required onchange="toggleFormFields()">
+                        <option value="booking">Booking</option>
+                        <option value="destination">Destination</option>
+                        <option value="card">Card</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="title">Title *</label>
+                    <input type="text" id="title" name="title" required placeholder="e.g., Flight to Paris">
+                </div>
+                
+                <div class="form-group">
+                    <label for="description">Description</label>
+                    <textarea id="description" name="description" placeholder="Additional details about this item"></textarea>
+                </div>
+                
+                <!-- Booking-specific fields -->
+                <div id="bookingFields">
+                    <div class="form-group">
+                        <label for="booking_type">Booking Type *</label>
+                        <select id="booking_type" name="booking_type">
+                            <option value="flight">Flight</option>
+                            <option value="hotel">Hotel</option>
+                            <option value="car_rental">Car Rental</option>
+                            <option value="train">Train</option>
+                            <option value="bus">Bus</option>
+                            <option value="tour">Tour</option>
+                            <option value="activity">Activity</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="destination">Destination *</label>
+                        <input type="text" id="destination" name="destination" placeholder="City or location">
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group">
+                            <label for="start_date">Check-in / Departure Date *</label>
+                            <input type="date" id="start_date" name="start_date">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="end_date">Check-out / Return Date</label>
+                            <input type="date" id="end_date" name="end_date">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="booking_reference">Booking Reference / Confirmation Number</label>
+                        <input type="text" id="booking_reference" name="booking_reference" placeholder="e.g., ABC123XYZ">
+                    </div>
+                    
+                    <div class="form-group" style="display: grid; grid-template-columns: 2fr 1fr; gap: 1rem;">
+                        <div>
+                            <label for="amount">Total Amount</label>
+                            <input type="number" id="amount" name="amount" step="0.01" placeholder="0.00" style="width: 100%; padding: 0.75rem; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 1rem; box-sizing: border-box;">
+                        </div>
+                        
+                        <div>
+                            <label for="currency">Currency</label>
+                            <select id="currency" name="currency" style="width: 100%; padding: 0.75rem; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 1rem; box-sizing: border-box;">
+                                <option value="USD">USD</option>
+                                <option value="EUR">EUR</option>
+                                <option value="GBP">GBP</option>
+                                <option value="INR">INR</option>
+                                <option value="JPY">JPY</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="provider">Provider / Company</label>
+                        <input type="text" id="provider" name="provider" placeholder="e.g., Airline, Hotel Chain">
+                    </div>
+                </div>
+                
+                <!-- Card-specific fields -->
+                <div id="cardFields" style="display: none;">
+                    <div class="form-group">
+                        <label for="card_number">Card Number *</label>
+                        <input type="text" id="card_number" name="card_number" placeholder="1234 5678 9012 3456" maxlength="19">
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 1rem;">
+                        <div class="form-group">
+                            <label for="cardholder_name">Cardholder Name *</label>
+                            <input type="text" id="cardholder_name" name="cardholder_name" placeholder="John Doe">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="expiry_date">Expiry Date *</label>
+                            <input type="text" id="expiry_date" name="expiry_date" placeholder="MM/YY" maxlength="5">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="cvv">CVV *</label>
+                            <input type="text" id="cvv" name="cvv" placeholder="123" maxlength="4" pattern="[0-9]*">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="card_type">Card Type *</label>
+                        <select id="card_type" name="card_type">
+                            <option value="credit">Credit Card</option>
+                            <option value="debit">Debit Card</option>
+                            <option value="prepaid">Prepaid Card</option>
+                            <option value="travel">Travel Card</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="bank_name">Bank / Issuer</label>
+                        <input type="text" id="bank_name" name="bank_name" placeholder="Bank or card issuer name">
+                    </div>
+                </div>
+                
+                <!-- Destination-specific fields -->
+                <div id="destinationFields" style="display: none;">
+                    <div class="form-group">
+                        <label for="destination">Destination *</label>
+                        <input type="text" id="destination_dest" name="destination" placeholder="City or location">
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group">
+                            <label for="start_date_dest">Planned Start Date</label>
+                            <input type="date" id="start_date_dest" name="start_date">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="end_date_dest">Planned End Date</label>
+                            <input type="date" id="end_date_dest" name="end_date">
+                        </div>
+                    </div>
+                </div>
+                
+            </form>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn-secondary" onclick="closeAddModal()">Cancel</button>
+                <button type="submit" form="addItemForm" class="btn-primary">Add to Wallet</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="chatbot"></div>
+
+    <script>
+        function openAddModal() {
+            document.getElementById('addModal').style.display = 'block';
+            document.body.style.overflow = 'hidden'; // Prevent background scrolling
+            toggleFormFields();
+        }
+        
+        function closeAddModal() {
+            document.getElementById('addModal').style.display = 'none';
+            document.body.style.overflow = 'auto'; // Restore scrolling
+            document.getElementById('addItemForm').reset();
+            toggleFormFields();
+        }
+        
+        function toggleFormFields() {
+            const itemType = document.getElementById('item_type').value;
+            const bookingFields = document.getElementById('bookingFields');
+            const cardFields = document.getElementById('cardFields');
+            const destinationFields = document.getElementById('destinationFields');
+            
+            // Hide all fields first
+            bookingFields.style.display = 'none';
+            cardFields.style.display = 'none';
+            destinationFields.style.display = 'none';
+            
+            // Show relevant fields based on type
+            if (itemType === 'booking') {
+                bookingFields.style.display = 'block';
+            } else if (itemType === 'card') {
+                cardFields.style.display = 'block';
+            } else if (itemType === 'destination') {
+                destinationFields.style.display = 'block';
+            }
+        }
+        
+        // Format card number input
+        document.addEventListener('DOMContentLoaded', function() {
+            const cardNumber = document.getElementById('card_number');
+            if (cardNumber) {
+                cardNumber.addEventListener('input', function(e) {
+                    let value = e.target.value.replace(/\s/g, '');
+                    let formattedValue = value.match(/.{1,4}/g)?.join(' ') || value;
+                    e.target.value = formattedValue;
+                });
+            }
+            
+            // Format expiry date
+            const expiryDate = document.getElementById('expiry_date');
+            if (expiryDate) {
+                expiryDate.addEventListener('input', function(e) {
+                    let value = e.target.value.replace(/\D/g, '');
+                    if (value.length >= 2) {
+                        value = value.substring(0, 2) + '/' + value.substring(2, 4);
+                    }
+                    e.target.value = value;
+                });
+            }
+        });
+        
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('addModal');
+            if (event.target == modal) {
+                closeAddModal();
+            }
+        }
+        
+        // Handle form submission
+        document.getElementById('addItemForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const itemType = formData.get('item_type');
+            
+            const data = {
+                item_type: itemType,
+                title: formData.get('title'),
+                description: formData.get('description'),
+                amount: formData.get('amount') ? parseFloat(formData.get('amount')) : null,
+                currency: formData.get('currency') || 'USD'
+            };
+            
+            // Add fields based on item type
+            if (itemType === 'booking') {
+                data.destination = formData.get('destination');
+                data.start_date = formData.get('start_date');
+                data.end_date = formData.get('end_date');
+                data.metadata = JSON.stringify({
+                    booking_type: formData.get('booking_type'),
+                    booking_reference: formData.get('booking_reference'),
+                    provider: formData.get('provider')
+                });
+            } else if (itemType === 'card') {
+                data.metadata = JSON.stringify({
+                    card_number: formData.get('card_number'),
+                    cardholder_name: formData.get('cardholder_name'),
+                    expiry_date: formData.get('expiry_date'),
+                    cvv: formData.get('cvv'),
+                    card_type: formData.get('card_type'),
+                    bank_name: formData.get('bank_name')
+                });
+            } else if (itemType === 'destination') {
+                data.destination = formData.get('destination') || formData.get('destination_dest');
+                data.start_date = formData.get('start_date') || formData.get('start_date_dest');
+                data.end_date = formData.get('end_date') || formData.get('end_date_dest');
+            } else {
+                data.destination = formData.get('destination');
+                data.start_date = formData.get('start_date');
+                data.end_date = formData.get('end_date');
+            }
+            
+            try {
+                const response = await fetch('/add_to_wallet', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    closeAddModal();
+                    location.reload();
+                } else {
+                    alert('Error: ' + (result.error || 'Failed to add item'));
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        });
+        
+        async function removeItem(itemId) {
+            if (!confirm('Are you sure you want to remove this item from your wallet?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/remove_from_wallet', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ item_id: itemId })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    location.reload();
+                } else {
+                    alert('Error: ' + (result.error || 'Failed to remove item'));
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+    </script>
+    <script src="/static/chatbot.js"></script>
+</body>
+</html>

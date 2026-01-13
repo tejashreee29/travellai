@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Translator - TravelPlan</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <h1>✈️ TravelPlan</h1>
+        <div>
+            <span>Welcome, <strong>{{ user }}</strong></span>
+            <a href="/dashboard">Dashboard</a> | 
+            <a href="/logout">Sign Out</a>
+        </div>
+    </header>
+
+    <div class="destinations-container">
+        <div class="card" style="margin-top: 2rem;">
+            <h2 style="margin-bottom: 1.5rem;">🌐 Language Translator</h2>
+            <form method="post" style="display: flex; flex-direction: column; gap: 1.5rem;">
+                <div>
+                    <label style="display: block; margin-bottom: 0.5rem; color: var(--text-dark); font-weight: 600;">Text to Translate</label>
+                    <textarea 
+                        name="text" 
+                        placeholder="Enter text to translate..." 
+                        rows="4"
+                        required
+                        style="width: 100%; resize: vertical;"
+                    ></textarea>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div>
+                        <label style="display: block; margin-bottom: 0.5rem; color: var(--text-dark); font-weight: 600;">From Language</label>
+                        <select name="from_lang" required style="width: 100%;">
+                            {% for code, name in languages %}
+                            <option value="{{ code }}" {% if code == "en" %}selected{% endif %}>{{ name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label style="display: block; margin-bottom: 0.5rem; color: var(--text-dark); font-weight: 600;">To Language</label>
+                        <select name="to_lang" required style="width: 100%;">
+                            {% for code, name in languages %}
+                            <option value="{{ code }}" {% if code == "es" %}selected{% endif %}>{{ name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                
+                <button type="submit">Translate</button>
+            </form>
+        </div>
+
+        {% if error %}
+        <div class="error" style="margin-top: 1.5rem;">
+            {{ error }}
+        </div>
+        {% endif %}
+
+        {% if translated_text %}
+        <div class="card" style="margin-top: 2rem;">
+            <h2 style="margin-bottom: 1.5rem;">Translation Result</h2>
+            <div style="padding: 1.5rem; background: var(--bg-light); border-radius: 8px;">
+                <div style="font-size: 1.2rem; line-height: 1.8; color: var(--text-dark); margin-bottom: {% if pronunciation %}1rem{% else %}0{% endif %};">
+                    {{ translated_text }}
+                </div>
+                {% if pronunciation %}
+                <div style="padding-top: 1rem; border-top: 1px solid var(--border-color);">
+                    <div style="font-size: 0.9rem; color: var(--text-light); margin-bottom: 0.5rem; font-weight: 600;">Pronunciation:</div>
+                    <div style="font-size: 1rem; line-height: 1.6; color: var(--primary-color); font-style: italic;">
+                        {{ pronunciation }}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div id="chatbot"></div>
+
+    <script src="/static/chatbot.js"></script>
+</body>
+</html>

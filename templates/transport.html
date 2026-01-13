@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transport Guide - TravelPlan</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <h1>✈️ TravelPlan</h1>
+        <div>
+            <span>Welcome, <strong>{{ user }}</strong></span>
+            <a href="/dashboard">Dashboard</a> | 
+            <a href="/logout">Sign Out</a>
+        </div>
+    </header>
+
+    <div class="transport-container">
+        <div class="card" style="margin-top: 2rem;">
+            <h2 style="margin-bottom: 1.5rem;">🚌 City Transport Guide</h2>
+            <form method="POST" style="display: flex; gap: 1rem; align-items: end;">
+                <div style="flex: 1;">
+                    <input 
+                        type="text" 
+                        name="city" 
+                        placeholder="Enter City Name" 
+                        value="{{ city or '' }}"
+                        required
+                        style="width: 100%; padding: 0.75rem;"
+                    >
+                </div>
+                <button type="submit" style="padding: 0.75rem 2rem;">Search</button>
+            </form>
+        </div>
+
+        {% if city %}
+        <div style="margin: 1.5rem 0; padding: 1rem; background: #e3f2fd; color: var(--primary-color); border-radius: 8px; text-align: center; border-left: 3px solid var(--primary-color);">
+            <strong>Transport Information for {{ city }}</strong>
+        </div>
+
+        <div class="transport-section">
+            <h4>🚌 Bus Routes</h4>
+            {% if bus_data and bus_data|length > 0 %}
+            <ul>
+                {% for row in bus_data %}
+                <li>
+                    {% if row is mapping %}
+                        {% for key, value in row.items() %}
+                            <strong>{{ key }}:</strong> {{ value }}<br>
+                        {% endfor %}
+                    {% else %}
+                        {{ row }}
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p style="color: var(--text-light);">No bus data available.</p>
+            {% endif %}
+        </div>
+
+        <div class="transport-section">
+            <h4>🛣 Road Network</h4>
+            {% if road_data and road_data|length > 0 %}
+            <ul>
+                {% for row in road_data %}
+                <li>
+                    {% if row is mapping %}
+                        {% for key, value in row.items() %}
+                            <strong>{{ key }}:</strong> {{ value }}<br>
+                        {% endfor %}
+                    {% else %}
+                        {{ row }}
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p style="color: var(--text-light);">No road data available.</p>
+            {% endif %}
+        </div>
+
+        <div class="transport-section">
+            <h4>🚦 Traffic Conditions</h4>
+            {% if traffic_data and traffic_data|length > 0 %}
+            <ul>
+                {% for row in traffic_data %}
+                <li>
+                    {% if row is mapping %}
+                        {% for key, value in row.items() %}
+                            <strong>{{ key }}:</strong> {{ value }}<br>
+                        {% endfor %}
+                    {% else %}
+                        {{ row }}
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p style="color: var(--text-light);">No traffic data available.</p>
+            {% endif %}
+        </div>
+
+        <div class="transport-section">
+            <h4>🚆 Public Transport Usage</h4>
+            {% if commuter_data and commuter_data|length > 0 %}
+            <ul>
+                {% for row in commuter_data %}
+                <li>
+                    {% if row is mapping %}
+                        {% for key, value in row.items() %}
+                            <strong>{{ key }}:</strong> {{ value }}<br>
+                        {% endfor %}
+                    {% else %}
+                        {{ row }}
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p style="color: var(--text-light);">No public transport data available.</p>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <div id="chatbot"></div>
+
+    <script src="/static/chatbot.js"></script>
+</body>
+</html>

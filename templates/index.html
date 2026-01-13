@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TravelPlan - AI-Powered Travel Planning Platform</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .hero-section {
+            background: linear-gradient(135deg, #2193b0 0%, #197896 100%);
+            color: white;
+            padding: 5rem 1.5rem;
+            text-align: center;
+            min-height: 70vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .hero-content {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .hero-title {
+            font-size: 3.5rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            line-height: 1.2;
+        }
+
+        .hero-subtitle {
+            font-size: 1.4rem;
+            margin-bottom: 1rem;
+            opacity: 0.95;
+            font-weight: 300;
+        }
+
+        .hero-description {
+            font-size: 1.1rem;
+            margin-bottom: 2.5rem;
+            opacity: 0.9;
+            line-height: 1.6;
+        }
+
+        .hero-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .hero-btn {
+            padding: 1rem 2.5rem;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: inline-block;
+            font-size: 1.1rem;
+        }
+
+        .hero-btn-primary {
+            background: white;
+            color: #2193b0;
+        }
+
+        .hero-btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+        }
+
+        .hero-btn-outline {
+            background: transparent;
+            color: white;
+            border: 2px solid white;
+        }
+
+        .hero-btn-outline:hover {
+            background: white;
+            color: #2193b0;
+            transform: translateY(-3px);
+        }
+
+        .features-section {
+            padding: 5rem 1.5rem;
+            background: white;
+        }
+
+        .features-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .section-title {
+            text-align: center;
+            font-size: 2.5rem;
+            font-weight: 600;
+            color: var(--text-dark);
+            margin-bottom: 1rem;
+        }
+
+        .section-subtitle {
+            text-align: center;
+            color: var(--text-light);
+            font-size: 1.1rem;
+            margin-bottom: 4rem;
+            max-width: 700px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+
+        .feature-card {
+            background: var(--bg-light);
+            padding: 2.5rem 2rem;
+            border-radius: 12px;
+            text-align: center;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(33, 147, 176, 0.15);
+            border-color: var(--primary-color);
+        }
+
+        .feature-icon {
+            font-size: 3.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .feature-title {
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: var(--text-dark);
+            margin-bottom: 1rem;
+        }
+
+        .feature-description {
+            color: var(--text-light);
+            line-height: 1.6;
+            font-size: 1rem;
+        }
+
+        .cta-section {
+            background: linear-gradient(135deg, #2193b0 0%, #197896 100%);
+            color: white;
+            padding: 5rem 1.5rem;
+            text-align: center;
+        }
+
+        .cta-content {
+            max-width: 700px;
+            margin: 0 auto;
+        }
+
+        .cta-title {
+            font-size: 2.5rem;
+            margin-bottom: 1.5rem;
+            font-weight: 600;
+        }
+
+        .cta-description {
+            font-size: 1.2rem;
+            margin-bottom: 2.5rem;
+            opacity: 0.95;
+        }
+
+        @media (max-width: 768px) {
+            .hero-title {
+                font-size: 2.5rem;
+            }
+            .hero-subtitle {
+                font-size: 1.2rem;
+            }
+            .hero-description {
+                font-size: 1rem;
+            }
+            .section-title {
+                font-size: 2rem;
+            }
+            .features-grid {
+                grid-template-columns: 1fr;
+                gap: 1.5rem;
+            }
+            .cta-title {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="hero-section">
+        <div class="hero-content">
+            <h1 class="hero-title">TravelPlan</h1>
+            <p class="hero-subtitle">AI-Powered Travel Planning Platform</p>
+            <p class="hero-description">
+                An intelligent travel planning system that uses machine learning algorithms to provide personalized destination recommendations, 
+                generate optimized itineraries, and offer comprehensive travel assistance all in one platform.
+            </p>
+            <div class="hero-buttons">
+                <a href="/login" class="hero-btn hero-btn-primary">Get Started</a>
+                <a href="/signup" class="hero-btn hero-btn-outline">Create Account</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="features-section">
+        <div class="features-container">
+            <h2 class="section-title">Key Features</h2>
+            <p class="section-subtitle">
+                A comprehensive travel planning solution powered by artificial intelligence and machine learning
+            </p>
+            
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">🤖</div>
+                    <h3 class="feature-title">AI Destination Recommendations</h3>
+                    <p class="feature-description">
+                        Machine learning algorithms analyze your preferences, budget, and travel type to suggest the perfect destinations tailored to your needs.
+                    </p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">📅</div>
+                    <h3 class="feature-title">Smart Itinerary Generation</h3>
+                    <p class="feature-description">
+                        Automatically generate detailed, day-by-day travel itineraries optimized for your travel dates and destination preferences.
+                    </p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">🍽️</div>
+                    <h3 class="feature-title">Local Cuisine Discovery</h3>
+                    <p class="feature-description">
+                        Explore authentic local food recommendations and discover popular dishes from your destination cities with detailed information.
+                    </p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">🚌</div>
+                    <h3 class="feature-title">Transportation Guide</h3>
+                    <p class="feature-description">
+                        Access comprehensive transportation data including bus routes, road networks, traffic patterns, and commuter information.
+                    </p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">🌤️</div>
+                    <h3 class="feature-title">Weather & Utilities</h3>
+                    <p class="feature-description">
+                        Real-time weather forecasts, currency conversion, and language translation tools to help you prepare for your journey.
+                    </p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">💼</div>
+                    <h3 class="feature-title">Travel Wallet</h3>
+                    <p class="feature-description">
+                        Organize all your travel bookings, saved destinations, and travel cards in one centralized location for easy access.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="cta-section">
+        <div class="cta-content">
+            <h2 class="cta-title">Ready to Plan Your Journey?</h2>
+            <p class="cta-description">
+                Experience intelligent travel planning powered by AI and start creating your perfect itinerary today
+            </p>
+            <div class="hero-buttons">
+                <a href="/signup" class="hero-btn hero-btn-primary" style="background: white; color: #2193b0;">Sign Up Free</a>
+                <a href="/login" class="hero-btn hero-btn-outline" style="border-color: white; color: white;">Login</a>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

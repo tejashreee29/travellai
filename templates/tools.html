@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tools - TravelPlan</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .tools-container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 2rem 3rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 1.5rem;
+        }
+        .tool-card {
+            background: var(--bg-white);
+            border-radius: 8px;
+            box-shadow: var(--shadow);
+            padding: 1.5rem;
+        }
+        .tool-card h2 {
+            margin-bottom: 0.75rem;
+            color: var(--text-dark);
+        }
+        .tool-card p {
+            color: var(--text-light);
+            margin-bottom: 1rem;
+        }
+        .tool-card label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 0.35rem;
+            color: var(--text-dark);
+            font-size: 0.95rem;
+        }
+        .tool-card input, .tool-card select, .tool-card textarea {
+            width: 100%;
+            margin-bottom: 0.75rem;
+        }
+        .result-box {
+            background: var(--bg-light);
+            border-radius: 6px;
+            padding: 0.75rem;
+            min-height: 80px;
+            font-size: 0.95rem;
+            color: var(--text-dark);
+        }
+        .small-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.5rem;
+        }
+        @media (max-width: 768px) {
+            .tools-container {
+                grid-template-columns: 1fr;
+                padding: 0 1rem 2rem;
+            }
+            .small-row {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>✈️ TravelPlan</h1>
+        <div>
+            <span>Welcome, <strong>{{ user }}</strong></span>
+            <a href="/dashboard">Dashboard</a> | 
+            <a href="/logout">Sign Out</a>
+        </div>
+    </header>
+
+    <div class="tools-container">
+        <div class="tool-card">
+            <h2>🌤️ Weather</h2>
+            <p>Get current weather and a quick forecast</p>
+            <label>City</label>
+            <input id="weather-city" placeholder="e.g., Paris" />
+            <button onclick="getWeather()">Get Weather</button>
+            <div id="weather-result" class="result-box" style="margin-top: 0.75rem;"></div>
+        </div>
+
+        <div class="tool-card">
+            <h2>💱 Currency</h2>
+            <p>Convert between two currencies</p>
+            <div class="small-row">
+                <div>
+                    <label>Amount</label>
+                    <input id="currency-amount" type="number" step="0.01" value="1" />
+                </div>
+                <div>
+                    <label>From</label>
+                    <input id="currency-base" placeholder="USD" value="USD" />
+                </div>
+                <div>
+                    <label>To</label>
+                    <input id="currency-target" placeholder="EUR" value="EUR" />
+                </div>
+            </div>
+            <button onclick="convertCurrency()">Convert</button>
+            <div id="currency-result" class="result-box" style="margin-top: 0.75rem;"></div>
+        </div>
+
+        <div class="tool-card">
+            <h2>🌐 Translator</h2>
+            <p>Translate text quickly</p>
+            <label>Text</label>
+            <textarea id="translate-text" rows="3" placeholder="Enter text to translate"></textarea>
+            <div class="small-row">
+                <div>
+                    <label>From (auto for auto-detect)</label>
+                    <input id="translate-source" placeholder="auto" value="auto" />
+                </div>
+                <div>
+                    <label>To</label>
+                    <input id="translate-target" placeholder="en" value="en" />
+                </div>
+                <div style="align-self: end;">
+                    <button onclick="doTranslate()" style="width: 100%;">Translate</button>
+                </div>
+            </div>
+            <div id="translate-result" class="result-box" style="margin-top: 0.75rem;"></div>
+        </div>
+    </div>
+
+    <div id="chatbot"></div>
+
+    <script>
+        function setResult(id, text) {
+            document.getElementById(id).textContent = text;
+        }
+
+        function getWeather() {
+            const city = document.getElementById('weather-city').value.trim();
+            if (!city) { setResult('weather-result', 'Please enter a city'); return; }
+            setResult('weather-result', 'Loading...');
+            fetch(`/api/weather?city=${encodeURIComponent(city)}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) return setResult('weather-result', data.error);
+                    const current = data.data?.current_weather;
+                    if (!current) return setResult('weather-result', 'No weather data available');
+                    const info = `Temp: ${current.temperature}°C, Wind: ${current.windspeed} km/h, Condition: ${current.weathercode}`;
+                    setResult('weather-result', info);
+                })
+                .catch(() => setResult('weather-result', 'Unable to fetch weather'));
+        }
+
+        function convertCurrency() {
+            const amount = parseFloat(document.getElementById('currency-amount').value) || 0;
+            const base = document.getElementById('currency-base').value.trim().toUpperCase() || 'USD';
+            const target = document.getElementById('currency-target').value.trim().toUpperCase() || 'EUR';
+            setResult('currency-result', 'Loading...');
+            fetch(`/api/currency?amount=${amount}&base=${base}&target=${target}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) return setResult('currency-result', data.error);
+                    setResult('currency-result', `${amount} ${base} = ${data.result} ${target}`);
+                })
+                .catch(() => setResult('currency-result', 'Unable to convert currency'));
+        }
+
+        function doTranslate() {
+            const text = document.getElementById('translate-text').value.trim();
+            const source = document.getElementById('translate-source').value.trim() || 'auto';
+            const target = document.getElementById('translate-target').value.trim() || 'en';
+            if (!text) { setResult('translate-result', 'Please enter text'); return; }
+            setResult('translate-result', 'Translating...');
+            fetch('/api/translate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text, source, target })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) return setResult('translate-result', data.error);
+                setResult('translate-result', data.translated);
+            })
+            .catch(() => setResult('translate-result', 'Unable to translate'));
+        }
+    </script>
+    <script src="/static/chatbot.js"></script>
+</body>
+</html>

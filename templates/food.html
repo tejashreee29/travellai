@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Food Recommendations - TravelPlan</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <h1>✈️ TravelPlan</h1>
+        <div>
+            <span>Welcome, <strong>{{ user }}</strong></span>
+            <a href="/dashboard">Dashboard</a> | 
+            <a href="/logout">Sign Out</a>
+        </div>
+    </header>
+
+    <div class="food-container" style="max-width: 1200px; margin: 2rem auto; padding: 0 1rem;">
+        <div class="card" style="margin-top: 2rem;">
+            <h2 style="margin-bottom: 1.5rem;">🍽️ Local Food Recommendations</h2>
+            <form method="POST" style="display: flex; gap: 1rem; align-items: end;">
+                <div style="flex: 1;">
+                    <input 
+                        type="text" 
+                        name="city" 
+                        placeholder="Enter City Name" 
+                        value="{{ city or '' }}" 
+                        required
+                        style="width: 100%; padding: 0.75rem;"
+                    >
+                </div>
+                <button type="submit" style="padding: 0.75rem 2rem;">Search Foods</button>
+            </form>
+        </div>
+
+        {% if error %}
+        <div class="card" style="margin-top: 1rem; background: #ffebee; border-left: 4px solid #f44336; padding: 1rem;">
+            <p style="color: #c62828; margin: 0;"><strong>Error:</strong> {{ error }}</p>
+        </div>
+        {% endif %}
+
+        {% if city %}
+        <div style="margin: 1.5rem 0; padding: 1rem; background: #e3f2fd; color: var(--primary-color); border-radius: 8px; text-align: center; border-left: 3px solid var(--primary-color);">
+            <strong>Popular Foods in {{ city }}</strong>
+        </div>
+        {% elif not error %}
+        <div style="margin: 1.5rem 0; padding: 1rem; background: #f5f5f5; border-radius: 8px; text-align: center;">
+            <strong>Random Food Suggestions</strong>
+        </div>
+        {% endif %}
+
+        {% if items and items|length > 0 %}
+        <div class="card" style="margin-top: 1.5rem;">
+            <ul style="list-style: none; padding: 0;">
+            {% for f in items %}
+              <li style="padding: 1.5rem; margin-bottom: 1rem; background: #fafafa; border-radius: 8px; border-left: 4px solid var(--primary-color);">
+                <strong style="font-size: 1.2rem; color: var(--primary-color);">{{ f.get("Dish Name", "Unknown Dish") }}</strong> <br>
+                <div style="margin-top: 0.5rem; color: var(--text-dark);">
+                    <strong>Country:</strong> {{ f.get("Country", "N/A") }} <br>
+                    <strong>Region/City:</strong> {{ f.get("Region/City", "N/A") }} <br>
+                    {% if f.get("Description") %}
+                    <div style="margin-top: 0.75rem;">
+                        <strong>Description:</strong> 
+                        <p style="margin: 0.25rem 0 0 0; line-height: 1.6;">{{ f.get("Description", "N/A") }}</p>
+                    </div>
+                    {% endif %}
+                    {% if f.get("Ingredients") %}
+                    <div style="margin-top: 0.75rem;">
+                        <strong>Ingredients:</strong> 
+                        <p style="margin: 0.25rem 0 0 0; line-height: 1.6; color: var(--text-dark);">{{ f.get("Ingredients", "N/A") }}</p>
+                    </div>
+                    {% endif %}
+                    {% if f.get("Cooking Method") %}
+                    <div style="margin-top: 0.75rem;">
+                        <strong>Cooking Method:</strong> {{ f.get("Cooking Method", "N/A") }}
+                    </div>
+                    {% endif %}
+                    {% if f.get("Vegetarian") %}
+                    <div style="margin-top: 0.75rem;">
+                        <strong>Vegetarian:</strong> 
+                        {% if f.get('Vegetarian', '').lower() == 'yes' %}
+                        <span style="color: green;">
+                            {{ f.get("Vegetarian", "N/A") }}
+                        </span>
+                        {% else %}
+                        <span style="color: var(--text-dark);">
+                            {{ f.get("Vegetarian", "N/A") }}
+                        </span>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+              </li>
+            {% endfor %}
+            </ul>
+        </div>
+        {% elif city and not error %}
+        <div class="card" style="text-align: center; padding: 3rem; margin-top: 1.5rem;">
+            <p style="color: var(--text-light);">No food suggestions found for {{ city }}. Try a different city.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <div id="chatbot"></div>
+
+    <script src="/static/chatbot.js"></script>
+</body>
+</html>

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Currency Converter - TravelPlan</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <h1>✈️ TravelPlan</h1>
+        <div>
+            <span>Welcome, <strong>{{ user }}</strong></span>
+            <a href="/dashboard">Dashboard</a> | 
+            <a href="/logout">Sign Out</a>
+        </div>
+    </header>
+
+    <div class="destinations-container">
+        <div class="card" style="margin-top: 2rem;">
+            <h2 style="margin-bottom: 1.5rem;">💱 Currency Converter</h2>
+            <form method="post" style="display: flex; flex-direction: column; gap: 1.5rem;">
+                <div>
+                    <label style="display: block; margin-bottom: 0.5rem; color: var(--text-dark); font-weight: 600;">Amount</label>
+                    <input 
+                        type="number" 
+                        name="amount" 
+                        placeholder="Enter amount" 
+                        step="0.01"
+                        required
+                        style="width: 100%;"
+                    >
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div>
+                        <label style="display: block; margin-bottom: 0.5rem; color: var(--text-dark); font-weight: 600;">From Currency</label>
+                        <select name="from_currency" required style="width: 100%;">
+                            {% for code, name in currencies %}
+                            <option value="{{ code }}">{{ code }} - {{ name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label style="display: block; margin-bottom: 0.5rem; color: var(--text-dark); font-weight: 600;">To Currency</label>
+                        <select name="to_currency" required style="width: 100%;">
+                            {% for code, name in currencies %}
+                            <option value="{{ code }}" {% if code == "EUR" %}selected{% endif %}>{{ code }} - {{ name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                
+                <button type="submit">Convert</button>
+            </form>
+        </div>
+
+        {% if error %}
+        <div class="error" style="margin-top: 1.5rem;">
+            {{ error }}
+        </div>
+        {% endif %}
+
+        {% if result %}
+        <div class="card" style="margin-top: 2rem; text-align: center;">
+            <h2 style="margin-bottom: 1.5rem;">Conversion Result</h2>
+            <div style="font-size: 2rem; font-weight: 700; color: var(--primary-color); margin-bottom: 1rem;">
+                {{ result.amount }} {{ result.from }} = {{ result.converted }} {{ result.to }}
+            </div>
+            <div style="color: var(--text-light);">
+                Exchange Rate: 1 {{ result.from }} = {{ result.rate }} {{ result.to }}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div id="chatbot"></div>
+
+    <script src="/static/chatbot.js"></script>
+</body>
+</html>
