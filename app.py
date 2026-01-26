@@ -6,6 +6,10 @@ import os
 import requests
 import re
 import warnings
+import qrcode
+import io
+import base64
+from datetime import datetime
 
 # Suppress FutureWarning for deprecated google.generativeai
 warnings.filterwarnings('ignore', category=FutureWarning, message='.*google.generativeai.*')
@@ -28,11 +32,13 @@ CURRENCY_API_KEY = os.environ.get("CURRENCY_API_KEY", "")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
 # Configure Gemini API if available
-if GEMINI_AVAILABLE and GEMINI_API_KEY:
+if GEMINI_AVAILABLE and GEMINI_API_KEY and GEMINI_API_KEY.strip():
     try:
         genai.configure(api_key=GEMINI_API_KEY)
+        print("Gemini API configured successfully")
     except Exception as e:
         print(f"Warning: Could not configure Gemini API: {e}")
+        GEMINI_API_KEY = ""  # Clear invalid key
 
 # ---------------------------------------------------
 # Load datasets
@@ -207,13 +213,14 @@ def destinations():
                                     except Exception as db_error:
                                         print(f"Warning: Could not save to travel history: {db_error}")
                                     
-                                    # Keep results from session if we want to show them again
-                                    # For now, clear results after itinerary is created
+                                    # Clear results after itinerary is created so user sees the itinerary
                                     results = None
-                                    print(f"Itinerary generated successfully: {len(itinerary)} days for {selected_city}")
+                                    print(f"✓ Itinerary generated successfully: {len(itinerary)} days for {selected_city}")
+                                    print(f"  Itinerary content: {itinerary[:2]}...")  # Print first 2 days
                                 else:
                                     error = "Failed to generate itinerary. Please try again."
-                                    print("Itinerary generation returned empty result")
+                                    print("✗ Itinerary generation returned empty result")
+                                    selected_city = None  # Clear selected_city if generation failed
                             except Exception as gen_error:
                                 error = f"Error generating itinerary: {str(gen_error)}"
                                 import traceback
@@ -229,9 +236,13 @@ def destinations():
                 print(f"General error in itinerary creation: {e}")
 
     # Debug output
-    print(f"Rendering template - results: {results is not None}, itinerary: {itinerary is not None}, selected_city: {selected_city}, error: {error}")
+    print(f"=== Rendering template ===")
+    print(f"  results: {results is not None} ({len(results) if results is not None else 0} items)")
+    print(f"  itinerary: {itinerary is not None} ({len(itinerary) if itinerary else 0} days)")
+    print(f"  selected_city: '{selected_city}'")
+    print(f"  error: {error}")
     if itinerary:
-        print(f"Itinerary has {len(itinerary)} days")
+        print(f"  Itinerary preview: Day 1 = {itinerary[0] if len(itinerary) > 0 else 'N/A'}")
 
     return render_template(
         "destinations.html",
@@ -266,6 +277,97 @@ def save_destination():
     return jsonify({"success": True})
 
 # ---------------------------------------------------
+# Itinerary Generator Page (Separate from Destinations)
+# ---------------------------------------------------
+@app.route("/itinerary", methods=["GET", "POST"])
+def itinerary():
+    if "user_id" not in session:
+        return redirect("/login")
+    
+    user_id = session["user_id"]
+    itinerary = None
+    city = None
+    error = None
+    
+    if request.method == "POST":
+        print(f"POST request received for itinerary generation")
+        
+        # Extract form data
+        city = request.form.get("city", "").strip()
+        start_date = request.form.get("start_date", "").strip()
+        end_date = request.form.get("end_date", "").strip()
+        
+        print(f"City: '{city}', Start: '{start_date}', End: '{end_date}'")
+        
+        try:
+            # Validate inputs
+            if not city:
+                error = "Please enter a destination city."
+                print(f"Error: Missing city")
+            elif not start_date or not end_date:
+                error = "Please select both start and end dates."
+                print(f"Error: Missing dates - start: '{start_date}', end: '{end_date}'")
+            else:
+                # Validate date format and logic
+                from datetime import datetime
+                try:
+                    start = datetime.strptime(start_date, "%Y-%m-%d")
+                    end = datetime.strptime(end_date, "%Y-%m-%d")
+                    
+                    if end < start:
+                        error = "End date must be after start date."
+                        print(f"Error: End date before start date")
+                    elif (end - start).days > 30:
+                        error = "Itinerary cannot exceed 30 days. Please select a shorter date range."
+                        print(f"Error: Date range too long")
+                    else:
+                        # Generate itinerary
+                        print(f"Generating itinerary for {city} from {start_date} to {end_date}")
+                        try:
+                            itinerary = generate_itinerary(city, start_date, end_date)
+                            
+                            if itinerary and len(itinerary) > 0:
+                                # Save to travel history
+                                try:
+                                    db.add_travel_history(user_id, city, "", "", start_date, end_date)
+                                    print(f"✓ Saved to travel history")
+                                except Exception as db_error:
+                                    print(f"Warning: Could not save to travel history: {db_error}")
+                                
+                                print(f"✓ Itinerary generated successfully: {len(itinerary)} days")
+                            else:
+                                error = "Failed to generate itinerary. Please try again."
+                                print(f"✗ Itinerary generation returned empty result")
+                        except Exception as gen_error:
+                            error = f"Error generating itinerary: {str(gen_error)}"
+                            import traceback
+                            traceback.print_exc()
+                            print(f"Itinerary generation error: {gen_error}")
+                except ValueError as e:
+                    error = f"Invalid date format. Please use the date picker. Error: {str(e)}"
+                    print(f"Date parsing error: {e}")
+        except Exception as e:
+            error = f"Error creating itinerary: {str(e)}"
+            import traceback
+            traceback.print_exc()
+            print(f"General error in itinerary creation: {e}")
+    
+    # Debug output
+    print(f"=== Rendering itinerary template ===")
+    print(f"  city: '{city}'")
+    print(f"  itinerary: {itinerary is not None} ({len(itinerary) if itinerary else 0} days)")
+    print(f"  error: {error}")
+    
+    return render_template(
+        "itinerary.html",
+        itinerary=itinerary,
+        city=city,
+        user=session["user"],
+        error=error
+    )
+
+
+# ---------------------------------------------------
 # Delete Travel History
 # ---------------------------------------------------
 @app.route("/delete_travel/<int:travel_id>", methods=["POST"])
@@ -280,6 +382,23 @@ def delete_travel(travel_id):
         return redirect("/dashboard")
     else:
         flash("Error: Could not delete travel history", "error")
+        return redirect("/dashboard")
+
+# ---------------------------------------------------
+# Delete Saved Destination
+# ---------------------------------------------------
+@app.route("/delete_saved_destination/<int:dest_id>", methods=["POST"])
+def delete_saved_destination(dest_id):
+    if "user_id" not in session:
+        return redirect("/login")
+    
+    user_id = session["user_id"]
+    success = db.delete_saved_destination(dest_id, user_id)
+    
+    if success:
+        return redirect("/dashboard")
+    else:
+        flash("Error: Could not delete saved destination", "error")
         return redirect("/dashboard")
 
 # ---------------------------------------------------
@@ -321,14 +440,20 @@ def transport():
     road_data = []
     traffic_data = []
     commuter_data = []
+    recommendations = None
 
     if request.method == "POST":
-        city = request.form["city"]
-        if city and not bus_df.empty:
-            bus_data = bus_df[bus_df["city"].str.lower() == city.lower()].to_dict(orient="records") if "city" in bus_df.columns else []
-            road_data = road_df[road_df["city"].str.lower() == city.lower()].to_dict(orient="records") if "city" in road_df.columns else []
-            traffic_data = traffic_df[traffic_df["city"].str.lower() == city.lower()].to_dict(orient="records") if "city" in traffic_df.columns else []
-            commuter_data = commuter_df[commuter_df["city"].str.lower() == city.lower()].to_dict(orient="records") if "city" in commuter_df.columns else []
+        city = request.form.get("city", "").strip()
+        if city:
+            # Try to get data from datasets
+            if not bus_df.empty:
+                bus_data = bus_df[bus_df["city"].str.lower() == city.lower()].to_dict(orient="records") if "city" in bus_df.columns else []
+                road_data = road_df[road_df["city"].str.lower() == city.lower()].to_dict(orient="records") if "city" in road_df.columns else []
+                traffic_data = traffic_df[traffic_df["city"].str.lower() == city.lower()].to_dict(orient="records") if "city" in traffic_df.columns else []
+                commuter_data = commuter_df[commuter_df["city"].str.lower() == city.lower()].to_dict(orient="records") if "city" in commuter_df.columns else []
+            
+            # Generate intelligent transport recommendations
+            recommendations = get_transport_recommendations(city)
 
     return render_template(
         "transport.html",
@@ -337,8 +462,138 @@ def transport():
         road_data=road_data,
         traffic_data=traffic_data,
         commuter_data=commuter_data,
+        recommendations=recommendations,
         user=session["user"]
     )
+
+def get_transport_recommendations(city):
+    """Generate transport mode recommendations based on city characteristics"""
+    city_lower = city.lower()
+    
+    # Major cities with metro systems
+    metro_cities = [
+        "london", "paris", "new york", "tokyo", "moscow", "beijing", "shanghai",
+        "seoul", "singapore", "hong kong", "bangkok", "delhi", "mumbai", "cairo",
+        "madrid", "barcelona", "berlin", "munich", "vienna", "prague", "budapest",
+        "istanbul", "athens", "rome", "milan", "amsterdam", "brussels", "stockholm",
+        "oslo", "copenhagen", "warsaw", "lisbon", "dublin", "edinburgh", "glasgow"
+    ]
+    
+    # Cities known for excellent public transport
+    public_transport_cities = [
+        "zurich", "geneva", "helsinki", "copenhagen", "stockholm", "singapore",
+        "hong kong", "tokyo", "seoul", "vienna", "berlin", "amsterdam", "london"
+    ]
+    
+    # Cities where cycling is popular
+    cycling_cities = [
+        "amsterdam", "copenhagen", "utrecht", "munster", "antwerp", "strasbourg",
+        "bordeaux", "portland", "minneapolis", "boulder", "berlin", "vienna"
+    ]
+    
+    # Cities where walking is best
+    walkable_cities = [
+        "venice", "florence", "prague", "bruges", "salzburg", "tallinn", "riga",
+        "vilnius", "lubjana", "zadar", "dubrovnik", "split", "santorini", "mykonos"
+    ]
+    
+    # Cities where taxis/ride-sharing is recommended
+    taxi_cities = [
+        "los angeles", "houston", "phoenix", "atlanta", "miami", "dallas",
+        "philadelphia", "detroit", "charlotte", "san antonio"
+    ]
+    
+    recommendations = {
+        "primary": [],
+        "secondary": [],
+        "tips": []
+    }
+    
+    # Check for metro
+    has_metro = any(metro_city in city_lower for metro_city in metro_cities)
+    if has_metro:
+        recommendations["primary"].append({
+            "mode": "Metro/Subway",
+            "reason": "Efficient and fast for city center travel",
+            "pros": ["Fast", "Avoids traffic", "Affordable", "Frequent service"],
+            "cons": ["Can be crowded during rush hours"]
+        })
+    
+    # Check for excellent public transport
+    has_excellent_pt = any(pt_city in city_lower for pt_city in public_transport_cities)
+    if has_excellent_pt:
+        recommendations["primary"].append({
+            "mode": "Public Transport (Bus/Tram)",
+            "reason": "Well-connected network covering the entire city",
+            "pros": ["Comprehensive coverage", "Affordable", "Eco-friendly"],
+            "cons": ["May require transfers"]
+        })
+    
+    # Check for cycling
+    is_cycling_city = any(cycle_city in city_lower for cycle_city in cycling_cities)
+    if is_cycling_city:
+        recommendations["secondary"].append({
+            "mode": "Bicycle",
+            "reason": "Bike-friendly infrastructure and culture",
+            "pros": ["Healthy", "Eco-friendly", "Flexible", "Free after rental"],
+            "cons": ["Weather dependent", "Requires physical effort"]
+        })
+    
+    # Check for walkability
+    is_walkable = any(walk_city in city_lower for walk_city in walkable_cities)
+    if is_walkable:
+        recommendations["primary"].append({
+            "mode": "Walking",
+            "reason": "Compact city center, best explored on foot",
+            "pros": ["Free", "Healthy", "See more details", "No waiting"],
+            "cons": ["Limited range", "Weather dependent"]
+        })
+    
+    # Taxi recommendations
+    is_taxi_city = any(taxi_city in city_lower for taxi_city in taxi_cities)
+    if is_taxi_city:
+        recommendations["secondary"].append({
+            "mode": "Taxi/Ride-sharing",
+            "reason": "Sprawling city layout, limited public transport",
+            "pros": ["Door-to-door", "Convenient", "Available 24/7"],
+            "cons": ["Expensive", "Traffic delays"]
+        })
+    
+    # Default recommendations if city not in specific lists
+    if not recommendations["primary"]:
+        recommendations["primary"].append({
+            "mode": "Public Transport (Bus/Metro)",
+            "reason": "Most cost-effective way to explore the city",
+            "pros": ["Affordable", "Covers major areas", "Regular service"],
+            "cons": ["May require route planning"]
+        })
+    
+    if not recommendations["secondary"]:
+        recommendations["secondary"].append({
+            "mode": "Walking",
+            "reason": "Great for exploring city centers and neighborhoods",
+            "pros": ["Free", "Flexible", "Discover hidden gems"],
+            "cons": ["Limited to shorter distances"]
+        })
+        recommendations["secondary"].append({
+            "mode": "Taxi/Ride-sharing",
+            "reason": "Convenient for longer distances or when in a hurry",
+            "pros": ["Convenient", "Direct routes"],
+            "cons": ["More expensive"]
+        })
+    
+    # Add general tips
+    recommendations["tips"] = [
+        "Purchase a day or multi-day transport pass for unlimited travel",
+        "Download local transport apps for real-time schedules",
+        "Avoid rush hours (7-9 AM, 5-7 PM) for a more comfortable journey",
+        "Keep small change for bus/tram tickets",
+        "Validate tickets before boarding to avoid fines",
+        "Consider walking for distances under 2km",
+        "Use ride-sharing apps for late-night travel"
+    ]
+    
+    return recommendations
 
 # ---------------------------------------------------
 # Weather Page
@@ -363,9 +618,9 @@ def weather():
                     try:
                         url = "https://api.openweathermap.org/data/2.5/weather"
                         params = {
-                            "q": city,
-                            "appid": WEATHER_API_KEY,
-                            "units": "metric"
+                        "q": city,
+                        "appid": WEATHER_API_KEY,
+                        "units": "metric"
                         }
                         response = requests.get(url, params=params, timeout=10)
                         if response.status_code == 200:
@@ -382,17 +637,15 @@ def weather():
                                 "pressure": data.get("main", {}).get("pressure", 0)
                             }
                         elif response.status_code == 401:
-                            # Invalid API key, fall through to free API
                             print("OpenWeatherMap API key invalid, using free API")
                         elif response.status_code == 404:
                             error = f"City '{city}' not found. Please try another city name."
                         else:
-                            # Other error, try free API
                             print(f"OpenWeatherMap error {response.status_code}, trying free API")
                     except Exception as e:
                         print(f"OpenWeatherMap API error: {e}, trying free API")
                 
-                # Fallback to free weather API (Open-Meteo or wttr.in)
+                # Fallback to free weather API (Open-Meteo)
                 if not weather_data:
                     try:
                         # First, get coordinates for the city using a geocoding service
@@ -497,48 +750,69 @@ def currency():
         
         try:
             amount = float(amount)
-            if CURRENCY_API_KEY:
-                # Using exchangerate-api.com (free tier)
-                url = f"https://v6.exchangerate-api.com/v6/{CURRENCY_API_KEY}/latest/{from_currency}"
+            # Try exchangerate-api.io (free, no API key needed)
+            try:
+                url = f"https://api.exchangerate-api.com/v4/latest/{from_currency}"
                 response = requests.get(url, timeout=5)
                 if response.status_code == 200:
                     data = response.json()
-                    if to_currency in data.get("conversion_rates", {}):
-                        rate = data["conversion_rates"][to_currency]
+                    if to_currency in data.get("rates", {}):
+                        rate = data["rates"][to_currency]
                         converted = amount * rate
                         result = {
                             "amount": amount,
                             "from": from_currency,
                             "to": to_currency,
-                            "rate": rate,
+                            "rate": round(rate, 4),
                             "converted": round(converted, 2)
                         }
                     else:
-                        error = "Currency conversion failed"
+                        raise Exception("Currency not found in rates")
                 else:
-                    error = "API error. Using estimated rates."
-                    # Fallback: approximate rates (for demo)
-                    rate = 0.85 if from_currency == "USD" and to_currency == "EUR" else 1.0
-                    result = {
-                        "amount": amount,
-                        "from": from_currency,
-                        "to": to_currency,
-                        "rate": rate,
-                        "converted": round(amount * rate, 2)
-                    }
-            else:
-                # Demo mode with approximate rates
+                    raise Exception("API returned non-200 status")
+            except Exception as api_error:
+                print(f"ExchangeRate API error: {api_error}, using fallback rates")
+                # Comprehensive fallback rates (updated approximate rates)
                 rates = {
-                    "USD": {"EUR": 0.85, "GBP": 0.79, "INR": 83.0, "JPY": 150.0},
-                    "EUR": {"USD": 1.18, "GBP": 0.93, "INR": 97.5, "JPY": 176.0},
-                    "GBP": {"USD": 1.27, "EUR": 1.08, "INR": 105.0, "JPY": 190.0}
+                    "USD": {
+                        "EUR": 0.92, "GBP": 0.79, "INR": 83.15, "JPY": 149.50,
+                        "AUD": 1.52, "CAD": 1.35, "CHF": 0.88, "CNY": 7.24,
+                        "SGD": 1.34, "AED": 3.67, "NZD": 1.64
+                    },
+                    "EUR": {
+                        "USD": 1.09, "GBP": 0.86, "INR": 90.50, "JPY": 162.75,
+                        "AUD": 1.65, "CAD": 1.47, "CHF": 0.96, "CNY": 7.88,
+                        "SGD": 1.46, "AED": 4.00, "NZD": 1.78
+                    },
+                    "GBP": {
+                        "USD": 1.27, "EUR": 1.16, "INR": 105.50, "JPY": 189.50,
+                        "AUD": 1.93, "CAD": 1.71, "CHF": 1.12, "CNY": 9.18,
+                        "SGD": 1.70, "AED": 4.66, "NZD": 2.07
+                    },
+                    "INR": {
+                        "USD": 0.012, "EUR": 0.011, "GBP": 0.0095, "JPY": 1.80,
+                        "AUD": 0.018, "CAD": 0.016, "CHF": 0.011, "CNY": 0.087,
+                        "SGD": 0.016, "AED": 0.044, "NZD": 0.020
+                    },
+                    "JPY": {
+                        "USD": 0.0067, "EUR": 0.0061, "GBP": 0.0053, "INR": 0.56,
+                        "AUD": 0.010, "CAD": 0.0090, "CHF": 0.0059, "CNY": 0.048,
+                        "SGD": 0.0090, "AED": 0.025, "NZD": 0.011
+                    }
                 }
+                # Add reverse rates for common currencies
+                for base_curr, targets in rates.items():
+                    for target_curr, rate_val in targets.items():
+                        if target_curr not in rates:
+                            rates[target_curr] = {}
+                        rates[target_curr][base_curr] = 1 / rate_val if rate_val != 0 else 1.0
+                
                 rate = rates.get(from_currency, {}).get(to_currency, 1.0)
                 result = {
                     "amount": amount,
                     "from": from_currency,
                     "to": to_currency,
-                    "rate": rate,
+                    "rate": round(rate, 4),
                     "converted": round(amount * rate, 2)
                 }
         except ValueError:
@@ -574,41 +848,28 @@ def translator():
         if text:
             translated_text = None
             # Try Gemini API first if available
-            if GEMINI_AVAILABLE and GEMINI_API_KEY:
+            if GEMINI_AVAILABLE and GEMINI_API_KEY and GEMINI_API_KEY.strip():
                 try:
                     # Get language names for better prompts
                     lang_names = dict(languages)
                     from_lang_name = lang_names.get(from_lang, from_lang)
                     to_lang_name = lang_names.get(to_lang, to_lang)
                     
-                    # Initialize model
+                    # Initialize model - use simple approach
                     model = None
-                    try:
-                        available_models = list(genai.list_models())
-                        supported_models = []
-                        for m in available_models:
-                            if hasattr(m, 'supported_generation_methods'):
-                                if 'generateContent' in m.supported_generation_methods:
-                                    model_name = m.name.split('/')[-1] if '/' in m.name else m.name
-                                    supported_models.append(model_name)
-                        
-                        if supported_models:
-                            model = genai.GenerativeModel(supported_models[0])
-                        else:
-                            for test_name in ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro']:
-                                try:
-                                    model = genai.GenerativeModel(test_name)
-                                    break
-                                except:
-                                    continue
-                    except:
-                        # Fallback to direct model initialization
-                        for test_name in ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro']:
-                            try:
-                                model = genai.GenerativeModel(test_name)
+                    for model_name in ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro']:
+                        try:
+                            model = genai.GenerativeModel(model_name)
+                            print(f"Translator: Successfully initialized model: {model_name}")
+                            break
+                        except Exception as e:
+                            error_msg = str(e)
+                            print(f"Translator: Failed {model_name}: {error_msg[:100]}")
+                            # If it's an API key error, don't try other models
+                            if "api" in error_msg.lower() and "key" in error_msg.lower():
+                                print("Translator: API key issue detected, skipping other models")
                                 break
-                            except:
-                                continue
+                            continue
                     
                     if model:
                         # Always request pronunciation for better user experience
@@ -620,14 +881,28 @@ PRONUNCIATION: [how to pronounce it in English using Latin alphabet]
 
 Text to translate: {text}"""
                         
-                        response = model.generate_content(prompt)
+                        try:
+                            response = model.generate_content(prompt)
+                        except Exception as gen_error:
+                            error_msg = str(gen_error)
+                            print(f"Translator: Error generating content: {error_msg[:200]}")
+                            # If it's an API key or quota error, raise it to trigger fallback
+                            if any(keyword in error_msg.lower() for keyword in ["api", "key", "quota", "permission", "unauthorized"]):
+                                raise Exception(f"API error: {error_msg[:100]}")
+                            raise
                         
+                        result_text = None
                         if hasattr(response, 'text'):
                             result_text = response.text.strip()
                         elif hasattr(response, 'candidates') and len(response.candidates) > 0:
-                            result_text = response.candidates[0].content.parts[0].text.strip()
-                        else:
-                            result_text = str(response).strip()
+                            if hasattr(response.candidates[0], 'content'):
+                                if hasattr(response.candidates[0].content, 'parts'):
+                                    if len(response.candidates[0].content.parts) > 0:
+                                        if hasattr(response.candidates[0].content.parts[0], 'text'):
+                                            result_text = response.candidates[0].content.parts[0].text.strip()
+                        
+                        if not result_text:
+                            result_text = str(response).strip() if response else ""
                         
                         # Parse the response to extract translation and pronunciation
                         if result_text:
@@ -705,22 +980,51 @@ Text to translate: {text}"""
                     print(f"Gemini translation error: {gemini_error}")
                     translated_text = None
             
-            # Fallback to LibreTranslate API if Gemini failed or not available
+            # Fallback to MyMemory Translation API if Gemini failed or not available
             if not translated_text:
                 try:
-                    url = "https://libretranslate.de/translate"
-                    payload = {
+                    # Try MyMemory Translation API (free, no key needed)
+                    url = "https://api.mymemory.translated.net/get"
+                    params = {
                         "q": text,
-                        "source": from_lang,
-                        "target": to_lang,
-                        "format": "text"
+                        "langpair": f"{from_lang}|{to_lang}"
                     }
-                    response = requests.post(url, data=payload, timeout=10)
+                    response = requests.get(url, params=params, timeout=10)
                     if response.status_code == 200:
                         data = response.json()
-                        translated_text = data.get("translatedText", text)
+                        if data.get("responseStatus") == 200:
+                            translated_text = data.get("responseData", {}).get("translatedText", "")
+                            if translated_text and translated_text != text:
+                                # MyMemory doesn't provide pronunciation, but translation works
+                                pass
+                            else:
+                                translated_text = None
+                        else:
+                            translated_text = None
                     else:
-                        error = f"Translation service error. Status code: {response.status_code}"
+                        translated_text = None
+                    
+                    # If MyMemory failed, try LibreTranslate as last resort
+                    if not translated_text:
+                        try:
+                            url = "https://libretranslate.de/translate"
+                            payload = {
+                                "q": text,
+                                "source": from_lang,
+                                "target": to_lang,
+                                "format": "text"
+                            }
+                            response = requests.post(url, data=payload, timeout=10)
+                            if response.status_code == 200:
+                                data = response.json()
+                                translated_text = data.get("translatedText", text)
+                                if translated_text == text:
+                                    translated_text = None
+                        except:
+                            pass
+                    
+                    if not translated_text:
+                        error = "Translation service unavailable. Please try again later."
                 except requests.exceptions.Timeout:
                     error = "Translation request timed out. Please try again."
                 except requests.exceptions.RequestException as e:
@@ -732,7 +1036,22 @@ Text to translate: {text}"""
         else:
             error = "Please enter text to translate"
     
-    return render_template("translator.html", translated_text=translated_text, pronunciation=pronunciation, error=error, languages=languages, user=session["user"])
+    # Preserve form values
+    original_text = request.form.get("text", "") if request.method == "POST" else ""
+    from_lang_val = request.form.get("from_lang", "en") if request.method == "POST" else "en"
+    to_lang_val = request.form.get("to_lang", "es") if request.method == "POST" else "es"
+    
+    return render_template(
+        "translator.html", 
+        translated_text=translated_text, 
+        pronunciation=pronunciation, 
+        error=error, 
+        languages=languages, 
+        user=session["user"],
+        original_text=original_text,
+        from_lang=from_lang_val,
+        to_lang=to_lang_val
+    )
 
 # ---------------------------------------------------
 # Wallet Page
@@ -798,6 +1117,71 @@ def remove_from_wallet():
         return jsonify({"success": False, "error": str(e)}), 400
 
 # ---------------------------------------------------
+# Generate QR Code for Wallet Item
+# ---------------------------------------------------
+@app.route("/wallet/qr/<int:item_id>")
+def generate_wallet_qr(item_id):
+    if "user_id" not in session:
+        return redirect("/login")
+    
+    user_id = session["user_id"]
+    wallet_items = db.get_wallet_items(user_id)
+    
+    # Find the item - sqlite3.Row objects use [] not .get()
+    item = None
+    for w_item in wallet_items:
+        # sqlite3.Row can be accessed like a dict with [] or converted to dict
+        try:
+            # Access sqlite3.Row with [] syntax
+            if w_item["id"] == item_id:
+                # Convert Row to dict for easier access with .get()
+                item = dict(w_item)
+                break
+        except (KeyError, TypeError, IndexError):
+            continue
+    
+    if not item:
+        return "Item not found", 404
+    
+    # Create QR code data
+    qr_data = {
+        "type": item.get("item_type", "travel_item"),
+        "title": item.get("title", ""),
+        "destination": item.get("destination", ""),
+        "dates": f"{item.get('start_date', '')} to {item.get('end_date', '')}",
+        "amount": f"{item.get('amount', 0)} {item.get('currency', 'USD')}",
+        "status": item.get("status", "active")
+    }
+    
+    # Convert to string for QR code
+    qr_string = f"TravelPlan Item\nType: {qr_data['type']}\nTitle: {qr_data['title']}\n"
+    qr_string += f"Destination: {qr_data['destination']}\n"
+    qr_string += f"Dates: {qr_data['dates']}\n"
+    qr_string += f"Amount: {qr_data['amount']}\n"
+    qr_string += f"Status: {qr_data['status']}"
+    
+    # Generate QR code
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_L,
+        box_size=10,
+        border=4,
+    )
+    qr.add_data(qr_string)
+    qr.make(fit=True)
+    
+    # Create image
+    img = qr.make_image(fill_color="black", back_color="white")
+    
+    # Convert to base64
+    img_buffer = io.BytesIO()
+    img.save(img_buffer, format='PNG')
+    img_buffer.seek(0)
+    img_base64 = base64.b64encode(img_buffer.getvalue()).decode()
+    
+    return f'<html><body style="text-align:center; padding:2rem;"><h2>QR Code for: {item.get("title", "Item")}</h2><img src="data:image/png;base64,{img_base64}" style="max-width:400px; border:2px solid #2193b0; padding:1rem; border-radius:8px;"/><p style="margin-top:1rem;">Scan this QR code to view travel item details</p></body></html>'
+
+# ---------------------------------------------------
 # AI Chatbot API
 # ---------------------------------------------------
 def strip_markdown(text):
@@ -843,46 +1227,49 @@ def chat():
             return jsonify({"reply": "Please provide a message."}), 400
         
         # Use Gemini API if available and configured
-        if GEMINI_AVAILABLE and GEMINI_API_KEY:
+        if GEMINI_AVAILABLE and GEMINI_API_KEY and GEMINI_API_KEY.strip():
             try:
-                # Try to list and use available models
                 model = None
                 
-                # First, try to list available models
-                try:
-                    available_models = list(genai.list_models())
-                    # Filter models that support generateContent
-                    supported_models = []
-                    for m in available_models:
-                        if hasattr(m, 'supported_generation_methods'):
-                            if 'generateContent' in m.supported_generation_methods:
-                                # Extract model name (format is usually 'models/gemini-xxx')
-                                model_name = m.name.split('/')[-1] if '/' in m.name else m.name
-                                supported_models.append(model_name)
-                    
-                    print(f"Found {len(supported_models)} supported models")
-                    if supported_models:
-                        print(f"Available models: {supported_models[:3]}")
-                        # Try the first available model
-                        model = genai.GenerativeModel(supported_models[0])
-                        print(f"Using model: {supported_models[0]}")
-                except Exception as list_error:
-                    print(f"Could not list models: {list_error}")
-                
-                # If listing failed, try common model names directly
-                if not model:
-                    # Try these in order - these are common model names
-                    for model_name in ['gemini-1.5-flash-002', 'gemini-1.5-pro-002', 'gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro']:
-                        try:
-                            model = genai.GenerativeModel(model_name)
-                            print(f"Successfully using model: {model_name}")
+                # Try common model names directly (deprecated package uses these names)
+                for model_name in ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro']:
+                    try:
+                        model = genai.GenerativeModel(model_name)
+                        # Test if model is actually usable by checking if it can be called
+                        print(f"Successfully initialized model: {model_name}")
+                        break
+                    except Exception as e:
+                        error_msg = str(e)
+                        print(f"Failed to initialize {model_name}: {error_msg[:100]}")
+                        # If it's an API key error, don't try other models
+                        if "api" in error_msg.lower() and "key" in error_msg.lower():
+                            print("API key issue detected, skipping other models")
                             break
-                        except Exception as e:
-                            print(f"Failed {model_name}: {str(e)[:100]}")
-                            continue
+                        continue
                 
                 if not model:
-                    raise Exception("Could not initialize any Gemini model. Please check your API key and model availability.")
+                    # Last resort: try listing models (only if we haven't hit API key issues)
+                    try:
+                        available_models = list(genai.list_models())
+                        for m in available_models:
+                            if hasattr(m, 'name'):
+                                model_name = m.name.split('/')[-1] if '/' in m.name else m.name
+                                try:
+                                    model = genai.GenerativeModel(model_name)
+                                    print(f"Using model from list: {model_name}")
+                                    break
+                                except Exception as model_error:
+                                    print(f"Failed to use model {model_name}: {str(model_error)[:50]}")
+                                    continue
+                    except Exception as list_error:
+                        error_msg = str(list_error)
+                        print(f"Could not list models: {error_msg[:100]}")
+                        # If it's an API key error, don't continue
+                        if "api" in error_msg.lower() and "key" in error_msg.lower():
+                            raise Exception("Invalid API key. Please check your GEMINI_API_KEY.")
+                
+                if not model:
+                    raise Exception("Could not initialize any Gemini model. Please check your API key.")
                 
                 # Create a context-aware prompt for travel assistance
                 prompt = f"""You are a helpful travel assistant for a travel planning platform called TravelPlan. 
@@ -908,18 +1295,32 @@ User question: {msg}
 
 Assistant response:"""
                 
-                # Generate response
-                response = model.generate_content(prompt)
+                # Generate response with timeout handling
+                try:
+                    response = model.generate_content(prompt)
+                except Exception as gen_error:
+                    error_msg = str(gen_error)
+                    print(f"Error generating content: {error_msg[:200]}")
+                    # If it's an API key or quota error, raise it
+                    if any(keyword in error_msg.lower() for keyword in ["api", "key", "quota", "permission", "unauthorized"]):
+                        raise Exception(f"API error: {error_msg[:100]}")
+                    raise
                 
                 # Handle different response structures
+                reply = None
                 if hasattr(response, 'text'):
                     reply = response.text
                 elif hasattr(response, 'candidates') and len(response.candidates) > 0:
-                    reply = response.candidates[0].content.parts[0].text
+                    if hasattr(response.candidates[0], 'content'):
+                        if hasattr(response.candidates[0].content, 'parts'):
+                            if len(response.candidates[0].content.parts) > 0:
+                                if hasattr(response.candidates[0].content.parts[0], 'text'):
+                                    reply = response.candidates[0].content.parts[0].text
                 elif isinstance(response, str):
                     reply = response
-                else:
-                    reply = str(response) if response else "I'm sorry, I couldn't generate a response. Please try again."
+                
+                if not reply:
+                    reply = str(response) if response else None
                 
                 if not reply or not reply.strip():
                     reply = "I'm sorry, I couldn't generate a response. Please try again."
@@ -935,6 +1336,7 @@ Assistant response:"""
                 print(error_details)
                 import traceback
                 traceback.print_exc()  # Print full traceback for debugging
+                # Use fallback response
                 reply = get_fallback_response(msg)
                 return jsonify({"reply": reply})
         else:

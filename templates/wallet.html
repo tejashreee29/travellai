@@ -472,6 +472,9 @@
                     {% endif %}
                     
                     <div class="card-actions">
+                        <button class="card-action-btn" onclick="window.open('/wallet/qr/{{ item.id }}', '_blank')" style="background: #2193b0; color: white; margin-right: 0.5rem;">
+                            📱 QR Code
+                        </button>
                         <button class="card-action-btn delete" onclick="removeItem({{ item.id }})">
                             🗑️ Remove
                         </button>

@@ -215,6 +215,16 @@ def delete_travel_history(travel_id, user_id):
         ''', (travel_id, user_id))
         return c.rowcount > 0
 
+def delete_saved_destination(dest_id, user_id):
+    """Delete a saved destination"""
+    with get_db() as conn:
+        c = conn.cursor()
+        c.execute('''
+            DELETE FROM saved_destinations
+            WHERE id = ? AND user_id = ?
+        ''', (dest_id, user_id))
+        return c.rowcount > 0
+
 def add_wallet_item(user_id, item_type, title, description=None, destination=None, start_date=None, end_date=None, amount=None, currency='USD', status='active', metadata=None):
     """Add an item to user's wallet"""
     with get_db() as conn:

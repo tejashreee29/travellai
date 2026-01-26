@@ -15,8 +15,18 @@ scaler = joblib.load("scaler.pkl")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_PATH = os.path.join(BASE_DIR, "worldwide_travel _cities.csv")
+ITINERARY_DATA_PATH = os.path.join(BASE_DIR, "tourism_iternary_dataset.csv")
 
 df = pd.read_csv(DATA_PATH)
+
+# Load tourism itinerary dataset if available
+itinerary_df = None
+try:
+    itinerary_df = pd.read_csv(ITINERARY_DATA_PATH)
+    print(f"Loaded tourism itinerary dataset with {len(itinerary_df)} entries")
+except Exception as e:
+    print(f"Could not load tourism itinerary dataset: {e}")
+    itinerary_df = None
 
 
 # Keep numeric columns for prediction
@@ -253,30 +263,222 @@ def recommend_destinations(travel_type, budget_level, top_n=5):
 # Itinerary Generator
 # -----------------------------
 def generate_itinerary(city, start_date, end_date):
-    start = datetime.strptime(start_date, "%Y-%m-%d")
-    end = datetime.strptime(end_date, "%Y-%m-%d")
-    days = (end - start).days + 1
-
-    activities = [
-        "City sightseeing & landmarks",
-        "Local food exploration",
-        "Cultural & heritage tour",
-        "Nature & relaxation",
-        "Shopping & markets",
-        "Adventure activities",
-        "Leisure & cafe hopping"
-    ]
-
-    itinerary = []
-    for i in range(days):
-        itinerary.append({
-            "Day": i + 1,
-            "Date": (start + pd.Timedelta(days=i)).strftime("%Y-%m-%d"),
-            "City": city,
-            "Plan": activities[i % len(activities)]
-        })
-
-    return itinerary
+    try:
+        start = datetime.strptime(start_date, "%Y-%m-%d")
+        end = datetime.strptime(end_date, "%Y-%m-%d")
+        days = (end - start).days + 1
+        
+        if days <= 0:
+            return []
+        
+        # First, try to get itinerary from tourism dataset
+        if itinerary_df is not None and not itinerary_df.empty:
+            try:
+                # Clean city name for matching (case-insensitive)
+                city_clean = city.strip()
+                
+                # Find all rows for this city
+                # The dataset has destination in first row, then empty destination for subsequent days
+                city_rows = []
+                found_city = False
+                
+                for idx, row in itinerary_df.iterrows():
+                    # Access pandas Series - use try/except for safety
+                    try:
+                        destination_val = row['input__destination']
+                        destination = str(destination_val).strip().strip('"') if pd.notna(destination_val) else ''
+                    except (KeyError, IndexError):
+                        destination = ''
+                    
+                    # If we find the city name, start collecting rows
+                    if destination and destination.lower() == city_clean.lower():
+                        found_city = True
+                        city_rows = []
+                    
+                    # If we've found the city, collect rows until we hit another city
+                    if found_city:
+                        try:
+                            day_num_val = row['output__optimized_itinerary__days__day']
+                            morning_val = row['output__optimized_itinerary__days__morning']
+                            afternoon_val = row['output__optimized_itinerary__days__afternoon']
+                            evening_val = row['output__optimized_itinerary__days__evening']
+                            
+                            day_num = str(day_num_val) if pd.notna(day_num_val) else ''
+                            morning = str(morning_val).strip().strip('"') if pd.notna(morning_val) else ''
+                            afternoon = str(afternoon_val).strip().strip('"') if pd.notna(afternoon_val) else ''
+                            evening = str(evening_val).strip().strip('"') if pd.notna(evening_val) else ''
+                            
+                            # If we have a day number, it's a valid itinerary entry
+                            if day_num and day_num.strip() and day_num.lower() != 'nan':
+                                try:
+                                    day_num_int = int(float(day_num))
+                                    # Check if we hit a new city (non-empty destination that's different)
+                                    if destination and destination.lower() != city_clean.lower() and destination.lower() != '':
+                                        break  # We've moved to a different city
+                                    
+                                    city_rows.append({
+                                        'day': day_num_int,
+                                        'morning': morning if morning and morning.lower() != 'nan' else '',
+                                        'afternoon': afternoon if afternoon and afternoon.lower() != 'nan' else '',
+                                        'evening': evening if evening and evening.lower() != 'nan' else ''
+                                    })
+                                except (ValueError, TypeError) as e:
+                                    pass
+                            # If we hit another city with destination, stop
+                            elif destination and destination.lower() != city_clean.lower() and destination.lower() != '':
+                                break
+                        except (KeyError, IndexError):
+                            # Missing columns, skip this row
+                            pass
+                
+                # If we found itinerary entries, use them
+                if city_rows:
+                    # Sort by day number
+                    city_rows.sort(key=lambda x: x['day'])
+                    
+                    # Build the itinerary for the requested date range
+                    result_itinerary = []
+                    for i in range(days):
+                        day_num = i + 1
+                        
+                        # Find matching day from dataset (cycle if needed)
+                        if day_num <= len(city_rows):
+                            entry = city_rows[day_num - 1]
+                        else:
+                            # Cycle through available days
+                            cycle_idx = (day_num - 1) % len(city_rows)
+                            entry = city_rows[cycle_idx]
+                        
+                        # Create highlights based on activities
+                        highlights_parts = []
+                        if entry.get('morning'):
+                            highlights_parts.append(entry['morning'][:50])
+                        if entry.get('afternoon'):
+                            highlights_parts.append(entry['afternoon'][:50])
+                        highlights = " | ".join(highlights_parts) if highlights_parts else f"Day {day_num} in {city}"
+                        
+                        result_itinerary.append({
+                            "Day": day_num,
+                            "Date": (start + pd.Timedelta(days=i)).strftime("%Y-%m-%d"),
+                            "City": city,
+                            "Morning": entry.get('morning', 'Explore the city') or 'Explore the city',
+                            "Afternoon": entry.get('afternoon', 'Visit local attractions') or 'Visit local attractions',
+                            "Evening": entry.get('evening', 'Enjoy local dining') or 'Enjoy local dining',
+                            "Highlights": highlights
+                        })
+                    
+                    print(f"✓ Using dataset itinerary for {city} ({len(result_itinerary)} days from {len(city_rows)} dataset entries)")
+                    return result_itinerary
+            except Exception as dataset_error:
+                import traceback
+                print(f"Error using dataset itinerary: {dataset_error}")
+                traceback.print_exc()
+        
+        # If dataset itinerary not available, use template-based itinerary
+        # Detailed activity templates for different days
+        activity_templates = {
+            1: {  # First day - arrival and orientation
+                "morning": "Arrival & hotel check-in",
+                "afternoon": "Explore local neighborhood & get oriented",
+                "evening": "Welcome dinner at a local restaurant",
+                "highlights": "Settle in, exchange currency, get local SIM card"
+            },
+            2: {
+                "morning": "City sightseeing & major landmarks",
+                "afternoon": "Visit historical sites & museums",
+                "evening": "Evening stroll through city center",
+                "highlights": "Must-see attractions and iconic landmarks"
+            },
+            3: {
+                "morning": "Local food exploration & market visit",
+                "afternoon": "Cooking class or food tour",
+                "evening": "Dinner at recommended local restaurant",
+                "highlights": "Authentic local cuisine and flavors"
+            },
+            4: {
+                "morning": "Cultural & heritage tour",
+                "afternoon": "Visit art galleries or cultural centers",
+                "evening": "Traditional cultural performance",
+                "highlights": "Immerse in local culture and traditions"
+            },
+            5: {
+                "morning": "Nature & outdoor activities",
+                "afternoon": "Parks, gardens, or nature reserves",
+                "evening": "Relaxation & spa time",
+                "highlights": "Connect with nature and unwind"
+            },
+            6: {
+                "morning": "Shopping & local markets",
+                "afternoon": "Souvenir hunting & local crafts",
+                "evening": "Evening entertainment district",
+                "highlights": "Find unique souvenirs and local products"
+            },
+            7: {
+                "morning": "Adventure activities or day trip",
+                "afternoon": "Explore nearby attractions",
+                "evening": "Farewell dinner",
+                "highlights": "Adventure and exploration"
+            }
+        }
+        
+        # Default template for days beyond 7
+        default_template = {
+            "morning": "Explore new areas of the city",
+            "afternoon": "Visit local attractions",
+            "evening": "Enjoy local nightlife or dining",
+            "highlights": "Discover hidden gems"
+        }
+        
+        itinerary = []
+        for i in range(days):
+            day_num = i + 1
+            template = activity_templates.get(day_num, default_template)
+            
+            # For longer trips, cycle through activities
+            if day_num > 7:
+                cycle_day = ((day_num - 1) % 7) + 1
+                template = activity_templates.get(cycle_day, default_template)
+            
+            itinerary.append({
+                "Day": day_num,
+                "Date": (start + pd.Timedelta(days=i)).strftime("%Y-%m-%d"),
+                "City": city,
+                "Morning": template["morning"],
+                "Afternoon": template["afternoon"],
+                "Evening": template["evening"],
+                "Highlights": template["highlights"]
+            })
+        
+        return itinerary
+    except Exception as e:
+        print(f"Error generating itinerary: {str(e)}")
+        # Fallback to simple itinerary
+        try:
+            start = datetime.strptime(start_date, "%Y-%m-%d")
+            end = datetime.strptime(end_date, "%Y-%m-%d")
+            days = (end - start).days + 1
+            
+            activities = [
+                "City sightseeing & landmarks",
+                "Local food exploration",
+                "Cultural & heritage tour",
+                "Nature & relaxation",
+                "Shopping & markets",
+                "Adventure activities",
+                "Leisure & cafe hopping"
+            ]
+            
+            itinerary = []
+            for i in range(days):
+                itinerary.append({
+                    "Day": i + 1,
+                    "Date": (start + pd.Timedelta(days=i)).strftime("%Y-%m-%d"),
+                    "City": city,
+                    "Plan": activities[i % len(activities)]
+                })
+            return itinerary
+        except:
+            return []
 
 # -----------------------------
 # Main Program

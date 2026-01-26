@@ -1,17 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Destinations - TravelPlan</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
+
 <body>
     <header>
         <h1>✈️ TravelPlan</h1>
         <div>
             <span>Welcome, <strong>{{ user }}</strong></span>
-            <a href="/dashboard">Dashboard</a> | 
+            <a href="/dashboard">Dashboard</a> |
             <a href="/logout">Sign Out</a>
         </div>
     </header>
@@ -27,119 +29,88 @@
             <h2 style="margin-bottom: 1.5rem;">🌍 AI-Powered Destination Recommendations</h2>
             <form method="post" class="search-form" id="searchForm">
                 <div>
-                    <label style="display: block; margin-bottom: 0.5rem; color: var(--text-dark); font-weight: 600;">Travel Type</label>
-                    <select name="travel_type" required id="travel_type_select" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px;">
-                        <option value="beaches" {% if travel_type == "beaches" %}selected{% endif %}>🏖️ Beaches</option>
-                        <option value="culture" {% if travel_type == "culture" %}selected{% endif %}>🏛️ Culture & Heritage</option>
-                        <option value="adventure" {% if travel_type == "adventure" %}selected{% endif %}>⛰️ Adventure</option>
-                        <option value="nature" {% if travel_type == "nature" %}selected{% endif %}>🌲 Nature</option>
-                        <option value="nightlife" {% if travel_type == "nightlife" %}selected{% endif %}>🌃 Nightlife</option>
-                        <option value="cuisine" {% if travel_type == "cuisine" %}selected{% endif %}>🍽️ Cuisine</option>
-                        <option value="wellness" {% if travel_type == "wellness" %}selected{% endif %}>🧘 Wellness</option>
-                        <option value="urban" {% if travel_type == "urban" %}selected{% endif %}>🏙️ Urban Exploration</option>
-                        <option value="mood" {% if travel_type == "mood" %}selected{% endif %}>😊 Mood-Based</option>
+                    <label
+                        style="display: block; margin-bottom: 0.5rem; color: var(--text-dark); font-weight: 600;">Travel
+                        Type</label>
+                    <select name="travel_type" required id="travel_type_select"
+                        style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px;">
+                        <option value="beaches" {% if travel_type=="beaches" %}selected{% endif %}>🏖️ Beaches</option>
+                        <option value="culture" {% if travel_type=="culture" %}selected{% endif %}>🏛️ Culture &
+                            Heritage</option>
+                        <option value="adventure" {% if travel_type=="adventure" %}selected{% endif %}>⛰️ Adventure
+                        </option>
+                        <option value="nature" {% if travel_type=="nature" %}selected{% endif %}>🌲 Nature</option>
+                        <option value="nightlife" {% if travel_type=="nightlife" %}selected{% endif %}>🌃 Nightlife
+                        </option>
+                        <option value="cuisine" {% if travel_type=="cuisine" %}selected{% endif %}>🍽️ Cuisine</option>
+                        <option value="wellness" {% if travel_type=="wellness" %}selected{% endif %}>🧘 Wellness
+                        </option>
+                        <option value="urban" {% if travel_type=="urban" %}selected{% endif %}>🏙️ Urban Exploration
+                        </option>
+                        <option value="mood" {% if travel_type=="mood" %}selected{% endif %}>😊 Mood-Based</option>
                     </select>
                 </div>
-                
+
                 <div>
-                    <label style="display: block; margin-bottom: 0.5rem; color: var(--text-dark); font-weight: 600;">Budget Level</label>
-                    <select name="budget" required id="budget_select" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px;">
-                        <option value="low" {% if budget == "low" %}selected{% endif %}>💰 Low Budget</option>
-                        <option value="medium" {% if budget == "medium" %}selected{% endif %}>💰💰 Medium Budget</option>
-                        <option value="high" {% if budget == "high" %}selected{% endif %}>💰💰💰 High Budget</option>
+                    <label
+                        style="display: block; margin-bottom: 0.5rem; color: var(--text-dark); font-weight: 600;">Budget
+                        Level</label>
+                    <select name="budget" required id="budget_select"
+                        style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px;">
+                        <option value="low" {% if budget=="low" %}selected{% endif %}>💰 Low Budget</option>
+                        <option value="medium" {% if budget=="medium" %}selected{% endif %}>💰💰 Medium Budget</option>
+                        <option value="high" {% if budget=="high" %}selected{% endif %}>💰💰💰 High Budget</option>
                     </select>
                 </div>
-                
+
                 <button type="submit" style="grid-column: 1 / -1;">Search Destinations</button>
             </form>
         </div>
 
         {% if results is not none and results|length > 0 %}
         <div style="margin-top: 2rem;">
-            <h2 style="margin-bottom: 1.5rem; color: var(--text-dark);">Select a Destination to Create Itinerary</h2>
+            <h2 style="margin-bottom: 1.5rem; color: var(--text-dark);">AI-Recommended Destinations</h2>
             <div class="results-grid">
                 {% for r in results.itertuples() %}
                 <div class="destination-card">
                     <h3>{{ r.city }}, {{ r.country }}</h3>
                     <div class="score">AI Score: {{ "%.2f"|format(r.final_score) }}</div>
-                    
+
                     {% if r.ideal_time %}
-                    <div style="margin-top: 0.75rem; padding: 0.75rem; background: #e3f2fd; border-radius: 6px; border-left: 3px solid #2193b0;">
+                    <div
+                        style="margin-top: 0.75rem; padding: 0.75rem; background: #e3f2fd; border-radius: 6px; border-left: 3px solid #2193b0;">
                         <p style="color: var(--primary-color); margin: 0; font-size: 0.9rem; font-weight: 600;">
                             📅 {{ r.ideal_time }}
                         </p>
                     </div>
                     {% endif %}
-                    
+
                     {% if r.description %}
-                    <div style="margin-top: 1rem; padding: 1rem; background: var(--bg-light); border-radius: 6px; border-left: 3px solid var(--primary-color);">
+                    <div
+                        style="margin-top: 1rem; padding: 1rem; background: var(--bg-light); border-radius: 6px; border-left: 3px solid var(--primary-color);">
                         <p style="color: var(--text-dark); line-height: 1.6; margin: 0; font-size: 0.95rem;">
                             <strong>About this destination:</strong><br>
                             {{ r.description }}
                         </p>
                     </div>
                     {% endif %}
-                    
-                    <form method="post" style="margin-top: 1rem;">
-                        <input type="hidden" name="selected_city" value="{{ r.city }}">
-                        <input type="hidden" name="travel_type" value="{{ travel_type }}">
-                        <input type="hidden" name="budget" value="{{ budget }}">
-                        
-                        <div style="margin-bottom: 0.75rem;">
-                            <label style="display: block; margin-bottom: 0.25rem; font-size: 0.875rem; color: var(--text-dark);">Start Date:</label>
-                            <input type="date" name="start_date" required style="width: 100%; padding: 0.5rem;">
-                        </div>
-                        
-                        <div style="margin-bottom: 0.75rem;">
-                            <label style="display: block; margin-bottom: 0.25rem; font-size: 0.875rem; color: var(--text-dark);">End Date:</label>
-                            <input type="date" name="end_date" required style="width: 100%; padding: 0.5rem;">
-                        </div>
-                        
-                        <div style="margin-bottom: 0.75rem;">
-                            <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; color: var(--text-dark);">
-                                <input type="checkbox" name="save_to_wallet" value="1" checked>
-                                Save to Wallet
-                            </label>
-                        </div>
-                        
-                        <button type="submit" style="width: 100%; padding: 0.5rem 1rem; font-size: 0.875rem;">Create Itinerary</button>
-                    </form>
-                    
-                    <button 
-                        class="save-dest-btn"
-                        data-city="{{ r.city }}"
-                        data-country="{{ r.country }}"
-                        data-score="{{ r.final_score }}"
-                        data-travel-type="{{ travel_type }}"
-                        data-description="{{ r.description if r.description else '' }}"
-                        data-ideal-time="{{ r.ideal_time if r.ideal_time else '' }}"
-                        style="margin-top: 0.5rem; width: 100%; padding: 0.5rem 1rem; font-size: 0.875rem;"
-                    >
-                        ⭐ Save Destination
-                    </button>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-        {% endif %}
 
-        {% if itinerary and selected_city %}
-        <div class="card" style="margin-top: 2rem;">
-            <h2 style="margin-bottom: 1.5rem; color: var(--text-dark);">📅 Your Travel Itinerary for {{ selected_city }}</h2>
-            <div style="display: flex; flex-direction: column; gap: 1rem;">
-                {% for day in itinerary %}
-                <div style="padding: 1rem; background: var(--bg-light); border-radius: 8px; border-left: 4px solid var(--primary-color);">
-                    <div style="font-weight: 600; color: var(--primary-color); margin-bottom: 0.5rem;">
-                        Day {{ day.Day }} - {{ day.Date }}
-                    </div>
-                    <div style="color: var(--text-dark);">
-                        {{ day.Plan }} in {{ day.City }}
+                    <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
+                        <a href="/itinerary" class="btn"
+                            style="flex: 1; text-align: center; text-decoration: none; padding: 0.75rem 1rem; background: var(--primary-color); color: white; border-radius: 8px; font-weight: 600; transition: all 0.3s;">
+                            🗓️ Create Itinerary
+                        </a>
+
+                        <button class="save-dest-btn" data-city="{{ r.city }}" data-country="{{ r.country }}"
+                            data-score="{{ r.final_score }}" data-travel-type="{{ travel_type }}"
+                            data-description="{{ r.description if r.description else '' }}"
+                            data-ideal-time="{{ r.ideal_time if r.ideal_time else '' }}"
+                            style="flex: 1; padding: 0.75rem 1rem; background: #ffc107; color: var(--text-dark); border: none; border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 0.3s;">
+                            ⭐ Save
+                        </button>
                     </div>
                 </div>
                 {% endfor %}
-            </div>
-            <div style="margin-top: 1.5rem;">
-                <a href="/destinations" class="btn btn-primary" style="text-decoration: none; display: inline-block; padding: 0.75rem 1.5rem; background: var(--primary-color); color: white; border-radius: 8px;">Search More Destinations</a>
             </div>
         </div>
         {% endif %}
@@ -148,17 +119,18 @@
     <div id="chatbot"></div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
+        // Save destination functionality
+        document.addEventListener('DOMContentLoaded', function () {
             const saveButtons = document.querySelectorAll('.save-dest-btn');
             saveButtons.forEach(button => {
-                button.addEventListener('click', function() {
+                button.addEventListener('click', function () {
                     const city = this.getAttribute('data-city');
                     const country = this.getAttribute('data-country');
                     const score = parseFloat(this.getAttribute('data-score'));
                     const travelType = this.getAttribute('data-travel-type') || document.querySelector('#travel_type_select')?.value || '';
                     const description = this.getAttribute('data-description') || '';
                     const idealTime = this.getAttribute('data-ideal-time') || '';
-                    
+
                     fetch('/save_destination', {
                         method: 'POST',
                         headers: {
@@ -173,24 +145,25 @@
                             ideal_time: idealTime
                         })
                     })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            this.textContent = '✓ Saved!';
-                            this.style.background = '#4caf50';
-                            this.disabled = true;
-                        } else {
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                this.textContent = '✓ Saved!';
+                                this.style.background = '#4caf50';
+                                this.disabled = true;
+                            } else {
+                                alert('Error saving destination');
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
                             alert('Error saving destination');
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                        alert('Error saving destination');
-                    });
+                        });
                 });
             });
         });
     </script>
     <script src="/static/chatbot.js"></script>
 </body>
+
 </html>

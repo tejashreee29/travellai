@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Itinerary Generator - TravelPlan</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body>
+    <header>
+        <h1>✈️ TravelPlan</h1>
+        <div>
+            <span>Welcome, <strong>{{ user }}</strong></span>
+            <a href="/dashboard">Dashboard</a> |
+            <a href="/logout">Sign Out</a>
+        </div>
+    </header>
+
+    <div class="destinations-container">
+        {% if error %}
+        <div class="card" style="margin-top: 2rem; background: #ffebee; border-left: 4px solid #f44336; padding: 1rem;">
+            <p style="color: #c62828; margin: 0;"><strong>Error:</strong> {{ error }}</p>
+        </div>
+        {% endif %}
+
+        {% if not itinerary %}
+        <div class="card" style="margin-top: 2rem;">
+            <h2 style="margin-bottom: 1.5rem;">🗓️ Generate Your Travel Itinerary</h2>
+            <p style="color: var(--text-light); margin-bottom: 2rem;">Create a personalized day-by-day travel plan for
+                your destination.</p>
+
+            <form method="post" class="search-form" id="itineraryForm" onsubmit="return validateItineraryForm(this)">
+                <div>
+                    <label
+                        style="display: block; margin-bottom: 0.5rem; color: var(--text-dark); font-weight: 600;">Destination
+                        City *</label>
+                    <input type="text" name="city" required placeholder="e.g., Paris, Tokyo, New York"
+                        style="width: 100%; padding: 0.75rem; border: 2px solid var(--border-color); border-radius: 8px; font-size: 1rem;"
+                        value="{{ city if city else '' }}">
+                </div>
+
+                <div>
+                    <label
+                        style="display: block; margin-bottom: 0.5rem; color: var(--text-dark); font-weight: 600;">Start
+                        Date *</label>
+                    <input type="date" name="start_date" required class="date-input"
+                        style="width: 100%; padding: 0.75rem; border: 2px solid var(--border-color); border-radius: 8px; font-size: 1rem;">
+                </div>
+
+                <div>
+                    <label style="display: block; margin-bottom: 0.5rem; color: var(--text-dark); font-weight: 600;">End
+                        Date *</label>
+                    <input type="date" name="end_date" required class="date-input"
+                        style="width: 100%; padding: 0.75rem; border: 2px solid var(--border-color); border-radius: 8px; font-size: 1rem;">
+                </div>
+
+                <button type="submit" class="generate-btn"
+                    style="grid-column: 1 / -1; padding: 1rem 2rem; font-size: 1rem;">
+                    🗓️ Generate Itinerary
+                </button>
+            </form>
+        </div>
+        {% endif %}
+
+        {% if itinerary %}
+        <div class="card" style="margin-top: 2rem; border: 2px solid var(--primary-color);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h2 style="color: var(--primary-color); margin: 0;">📅 Your Travel Itinerary for {{ city }}</h2>
+                <a href="/itinerary" class="btn"
+                    style="text-decoration: none; padding: 0.5rem 1rem; font-size: 0.9rem;">Create New</a>
+            </div>
+
+            <div style="background: var(--bg-light); padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                <p style="margin: 0; color: var(--text-dark);">
+                    <strong>📍 Destination:</strong> {{ city }}<br>
+                    <strong>📅 Duration:</strong> {{ itinerary|length }} days ({{ itinerary[0].Date }} to {{
+                    itinerary[-1].Date }})
+                </p>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 1rem;">
+                {% for day in itinerary %}
+                <div
+                    style="padding: 1.5rem; background: var(--bg-light); border-radius: 8px; border-left: 4px solid var(--primary-color); margin-bottom: 1rem;">
+                    <div style="font-weight: 600; color: var(--primary-color); margin-bottom: 1rem; font-size: 1.2rem;">
+                        Day {{ day.Day }} - {{ day.Date }}
+                    </div>
+                    {% if day.Morning or day.Afternoon or day.Evening %}
+                    <div style="display: grid; gap: 0.75rem; margin-bottom: 1rem;">
+                        {% if day.Morning %}
+                        <div style="padding: 0.75rem; background: white; border-radius: 6px;">
+                            <strong style="color: #ff9800;">🌅 Morning:</strong> <span
+                                style="color: var(--text-dark);">{{ day.Morning }}</span>
+                        </div>
+                        {% endif %}
+                        {% if day.Afternoon %}
+                        <div style="padding: 0.75rem; background: white; border-radius: 6px;">
+                            <strong style="color: #2196f3;">☀️ Afternoon:</strong> <span
+                                style="color: var(--text-dark);">{{ day.Afternoon }}</span>
+                        </div>
+                        {% endif %}
+                        {% if day.Evening %}
+                        <div style="padding: 0.75rem; background: white; border-radius: 6px;">
+                            <strong style="color: #9c27b0;">🌙 Evening:</strong> <span
+                                style="color: var(--text-dark);">{{ day.Evening }}</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% if day.Highlights %}
+                    <div
+                        style="padding: 0.75rem; background: #e3f2fd; border-radius: 6px; border-left: 3px solid var(--primary-color);">
+                        <strong style="color: var(--primary-color);">✨ Highlights:</strong> <span
+                            style="color: var(--text-dark);">{{ day.Highlights }}</span>
+                    </div>
+                    {% endif %}
+                    {% else %}
+                    <div style="color: var(--text-dark); font-size: 1rem;">
+                        {{ day.Plan if day.Plan else 'Explore ' + day.City }} in {{ day.City }}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+
+            <div
+                style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border-color); display: flex; gap: 1rem;">
+                <a href="/itinerary" class="btn btn-primary"
+                    style="text-decoration: none; display: inline-block; padding: 0.75rem 1.5rem; background: var(--primary-color); color: white; border-radius: 8px;">Create
+                    Another Itinerary</a>
+                <a href="/dashboard" class="btn"
+                    style="text-decoration: none; display: inline-block; padding: 0.75rem 1.5rem; background: white; color: var(--primary-color); border: 2px solid var(--primary-color); border-radius: 8px;">Back
+                    to Dashboard</a>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div id="chatbot"></div>
+
+    <script>
+        function validateItineraryForm(form) {
+            const cityInput = form.querySelector('input[name="city"]');
+            const startDateInput = form.querySelector('input[name="start_date"]');
+            const endDateInput = form.querySelector('input[name="end_date"]');
+            const submitBtn = form.querySelector('.generate-btn');
+
+            if (!cityInput || !startDateInput || !endDateInput) {
+                alert('Error: Form inputs not found');
+                return false;
+            }
+
+            const city = cityInput.value.trim();
+            const startDate = startDateInput.value;
+            const endDate = endDateInput.value;
+
+            // Check if all fields are filled
+            if (!city) {
+                alert('Please enter a destination city');
+                cityInput.style.borderColor = '#f44336';
+                return false;
+            }
+
+            if (!startDate || !endDate) {
+                alert('Please select both start and end dates');
+                startDateInput.style.borderColor = !startDate ? '#f44336' : '';
+                endDateInput.style.borderColor = !endDate ? '#f44336' : '';
+                return false;
+            }
+
+            // Reset border colors
+            cityInput.style.borderColor = '';
+            startDateInput.style.borderColor = '';
+            endDateInput.style.borderColor = '';
+
+            // Validate date logic
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+
+            if (end < start) {
+                alert('End date must be after start date');
+                endDateInput.style.borderColor = '#f44336';
+                return false;
+            }
+
+            const daysDiff = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+            if (daysDiff > 30) {
+                alert('Itinerary cannot exceed 30 days. Please select a shorter date range.');
+                endDateInput.style.borderColor = '#f44336';
+                return false;
+            }
+
+            // Show loading state
+            if (submitBtn) {
+                submitBtn.innerHTML = '⏳ Generating Itinerary...';
+                submitBtn.disabled = true;
+            }
+
+            return true;
+        }
+    </script>
+    <script src="/static/chatbot.js"></script>
+</body>
+
+</html>

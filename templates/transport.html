@@ -39,6 +39,87 @@
             <strong>Transport Information for {{ city }}</strong>
         </div>
 
+        {% if recommendations %}
+        <div class="card" style="margin: 2rem 0; background: linear-gradient(135deg, #2193b0 0%, #197896 100%); color: white;">
+            <h2 style="color: white; margin-bottom: 1.5rem;">🚗 Recommended Transport Modes</h2>
+            
+            {% if recommendations.primary %}
+            <div style="margin-bottom: 2rem;">
+                <h3 style="color: white; margin-bottom: 1rem;">⭐ Primary Recommendations</h3>
+                {% for rec in recommendations.primary %}
+                <div style="background: rgba(255,255,255,0.1); padding: 1.5rem; border-radius: 8px; margin-bottom: 1rem; backdrop-filter: blur(10px);">
+                    <h4 style="color: white; margin-bottom: 0.5rem;">{{ rec.mode }}</h4>
+                    <p style="margin-bottom: 0.75rem; opacity: 0.9;">{{ rec.reason }}</p>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                        <div>
+                            <strong style="color: #6dd5ed;">✅ Pros:</strong>
+                            <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
+                                {% for pro in rec.pros %}
+                                <li>{{ pro }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% if rec.cons %}
+                        <div>
+                            <strong style="color: #ffb74d;">⚠️ Cons:</strong>
+                            <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
+                                {% for con in rec.cons %}
+                                <li>{{ con }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            
+            {% if recommendations.secondary %}
+            <div style="margin-bottom: 2rem;">
+                <h3 style="color: white; margin-bottom: 1rem;">🔹 Alternative Options</h3>
+                {% for rec in recommendations.secondary %}
+                <div style="background: rgba(255,255,255,0.1); padding: 1.5rem; border-radius: 8px; margin-bottom: 1rem; backdrop-filter: blur(10px);">
+                    <h4 style="color: white; margin-bottom: 0.5rem;">{{ rec.mode }}</h4>
+                    <p style="margin-bottom: 0.75rem; opacity: 0.9;">{{ rec.reason }}</p>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                        <div>
+                            <strong style="color: #6dd5ed;">✅ Pros:</strong>
+                            <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
+                                {% for pro in rec.pros %}
+                                <li>{{ pro }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% if rec.cons %}
+                        <div>
+                            <strong style="color: #ffb74d;">⚠️ Cons:</strong>
+                            <ul style="margin: 0.5rem 0; padding-left: 1.5rem;">
+                                {% for con in rec.cons %}
+                                <li>{{ con }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            
+            {% if recommendations.tips %}
+            <div style="background: rgba(255,255,255,0.15); padding: 1.5rem; border-radius: 8px; margin-top: 1.5rem;">
+                <h3 style="color: white; margin-bottom: 1rem;">💡 Travel Tips</h3>
+                <ul style="margin: 0; padding-left: 1.5rem;">
+                    {% for tip in recommendations.tips %}
+                    <li style="margin-bottom: 0.5rem;">{{ tip }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
         <div class="transport-section">
             <h4>🚌 Bus Routes</h4>
             {% if bus_data and bus_data|length > 0 %}
