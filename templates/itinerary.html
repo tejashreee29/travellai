@@ -32,6 +32,7 @@
                 your destination.</p>
 
             <form method="post" class="search-form" id="itineraryForm" onsubmit="return validateItineraryForm(this)">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
                 <div>
                     <label
                         style="display: block; margin-bottom: 0.5rem; color: var(--text-dark); font-weight: 600;">Destination
@@ -65,11 +66,20 @@
         {% endif %}
 
         {% if itinerary %}
-        <div class="card" style="margin-top: 2rem; border: 2px solid var(--primary-color);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+        <div class="card"
+            style="margin-top: 2rem; border: 2px solid var(--primary-color); background: linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%);">
+            <div
+                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
                 <h2 style="color: var(--primary-color); margin: 0;">📅 Your Travel Itinerary for {{ city }}</h2>
-                <a href="/itinerary" class="btn"
-                    style="text-decoration: none; padding: 0.5rem 1rem; font-size: 0.9rem;">Create New</a>
+                <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+                    {% if itinerary and itinerary[0].get('ai_powered') %}
+                    <span
+                        style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 0.3rem 0.9rem; border-radius: 20px; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.5px;">✨
+                        AI-Powered by Gemini</span>
+                    {% endif %}
+                    <a href="/itinerary" class="btn"
+                        style="text-decoration: none; padding: 0.5rem 1rem; font-size: 0.9rem;">Create New</a>
+                </div>
             </div>
 
             <div style="background: var(--bg-light); padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">

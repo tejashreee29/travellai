@@ -1,7 +1,8 @@
 import sqlite3
-import hashlib
+import bcrypt
 from datetime import datetime
 from contextlib import contextmanager
+import re
 
 DATABASE = 'travelplan.db'
 
@@ -85,9 +86,32 @@ def init_db():
     conn.commit()
     conn.close()
 
+def validate_password_strength(password):
+    """Validate password strength"""
+    if len(password) < 8:
+        return False, "Password must be at least 8 characters long"
+    if not re.search(r'[A-Z]', password):
+        return False, "Password must contain at least one uppercase letter"
+    if not re.search(r'[a-z]', password):
+        return False, "Password must contain at least one lowercase letter"
+    if not re.search(r'[0-9]', password):
+        return False, "Password must contain at least one number"
+    return True, "Password is strong"
+
 def hash_password(password):
-    """Hash password using SHA256"""
-    return hashlib.sha256(password.encode()).hexdigest()
+    """Hash password using bcrypt with salt"""
+    # Generate salt and hash password
+    salt = bcrypt.gensalt(rounds=12)  # 12 rounds is a good balance of security and performance
+    password_hash = bcrypt.hashpw(password.encode('utf-8'), salt)
+    return password_hash.decode('utf-8')  # Store as string in database
+
+def verify_password(password, password_hash):
+    """Verify password against hash"""
+    try:
+        return bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8'))
+    except Exception as e:
+        print(f"Password verification error: {e}")
+        return False
 
 @contextmanager
 def get_db():
@@ -119,14 +143,21 @@ def create_user(username, password, email=None):
 
 def verify_user(username, password):
     """Verify user credentials"""
-    password_hash = hash_password(password)
     with get_db() as conn:
         c = conn.cursor()
         c.execute('''
-            SELECT id, username, email FROM users
-            WHERE username = ? AND password_hash = ?
-        ''', (username, password_hash))
-        return c.fetchone()
+            SELECT id, username, email, password_hash FROM users
+            WHERE username = ?
+        ''', (username,))
+        user = c.fetchone()
+        
+        if user and verify_password(password, user['password_hash']):
+            return {
+                'id': user['id'],
+                'username': user['username'],
+                'email': user['email']
+            }
+        return None
 
 def get_user_by_id(user_id):
     """Get user by ID"""

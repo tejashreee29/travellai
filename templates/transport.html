@@ -1,17 +1,43 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Transport Guide - TravelPlan</title>
     <link rel="stylesheet" href="/static/style.css">
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        .transport-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        #map {
+            height: 500px;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .route-card {
+            transition: transform 0.2s;
+        }
+
+        .route-card:hover {
+            transform: translateY(-2px);
+        }
+    </style>
 </head>
+
 <body>
     <header>
         <h1>✈️ TravelPlan</h1>
         <div>
             <span>Welcome, <strong>{{ user }}</strong></span>
-            <a href="/dashboard">Dashboard</a> | 
+            <a href="/dashboard">Dashboard</a> |
             <a href="/logout">Sign Out</a>
         </div>
     </header>
@@ -20,34 +46,87 @@
         <div class="card" style="margin-top: 2rem;">
             <h2 style="margin-bottom: 1.5rem;">🚌 City Transport Guide</h2>
             <form method="POST" style="display: flex; gap: 1rem; align-items: end;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
                 <div style="flex: 1;">
-                    <input 
-                        type="text" 
-                        name="city" 
-                        placeholder="Enter City Name" 
-                        value="{{ city or '' }}"
-                        required
-                        style="width: 100%; padding: 0.75rem;"
-                    >
+                    <input type="text" name="city"
+                        placeholder="Enter City Name (e.g., London, Paris, Tokyo, Boston, New York)"
+                        value="{{ city or '' }}" required style="width: 100%; padding: 0.75rem;">
                 </div>
                 <button type="submit" style="padding: 0.75rem 2rem;">Search</button>
             </form>
         </div>
 
         {% if city %}
-        <div style="margin: 1.5rem 0; padding: 1rem; background: #e3f2fd; color: var(--primary-color); border-radius: 8px; text-align: center; border-left: 3px solid var(--primary-color);">
-            <strong>Transport Information for {{ city }}</strong>
+        <div
+            style="margin: 1.5rem 0; padding: 1rem; background: #e3f2fd; color: var(--primary-color); border-radius: 8px; text-align: center; border-left: 3px solid var(--primary-color);">
+            <strong>🗺️ Transport Information for {{ city }}</strong>
+        </div>
+
+        <!-- Interactive Map Section -->
+        <div class="card" style="margin: 2rem 0;">
+            <h2 style="margin-bottom: 1rem;">🗺️ Interactive Transport Map</h2>
+            <p style="color: var(--text-light); margin-bottom: 1rem;">Click on markers to see station/stop details</p>
+            <div id="map"></div>
+            <div id="map-legend" style="margin-top: 1rem; padding: 1rem; background: #f5f5f5; border-radius: 8px;">
+                <strong>Legend (Live OpenStreetMap data):</strong>
+                <div style="display: flex; gap: 2rem; margin-top: 0.5rem; flex-wrap: wrap;">
+                    <div><span style="color: #e74c3c; font-size: 1.5rem;">●</span> Metro/Subway</div>
+                    <div><span style="color: #2ecc71; font-size: 1.5rem;">●</span> Rail/Train Stations</div>
+                    <div><span style="color: #3498db; font-size: 1.5rem;">●</span> Bus Stops</div>
+                    <div><span style="color: #9b59b6; font-size: 1.5rem;">●</span> Tram Stops</div>
+                    <div><span style="font-size: 1.2rem;">📍</span> City Center</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Transport Routes Section -->
+        <div class="card" style="margin: 2rem 0;">
+            <h2 style="margin-bottom: 1rem;">🚇 Major Transport Routes & Information</h2>
+            <div id="routes-container">
+                <div class="route-card"
+                    style="background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); color: white; padding: 1.5rem; border-radius: 8px; margin-bottom: 1rem;">
+                    <h3 style="color: white; margin-bottom: 0.5rem;">🚇 Metro/Subway System</h3>
+                    <p id="metro-info" style="margin: 0 0 0.75rem 0;">Loading metro information...</p>
+                    <div id="metro-names"
+                        style="display:flex;flex-wrap:wrap;gap:0.4rem;max-height:120px;overflow-y:auto;"></div>
+                    <button id="metro-toggle" onclick="toggleList('metro')"
+                        style="display:none;margin-top:0.6rem;background:rgba(255,255,255,0.25);border:none;color:white;padding:0.3rem 0.8rem;border-radius:20px;cursor:pointer;font-size:0.8rem;">Show
+                        all ▼</button>
+                </div>
+                <div class="route-card"
+                    style="background: linear-gradient(135deg, #3498db 0%, #2980b9 100%); color: white; padding: 1.5rem; border-radius: 8px; margin-bottom: 1rem;">
+                    <h3 style="color: white; margin-bottom: 0.5rem;">🚌 Bus Network</h3>
+                    <p id="bus-info" style="margin: 0 0 0.75rem 0;">Loading bus information...</p>
+                    <div id="bus-names"
+                        style="display:flex;flex-wrap:wrap;gap:0.4rem;max-height:120px;overflow-y:auto;"></div>
+                    <button id="bus-toggle" onclick="toggleList('bus')"
+                        style="display:none;margin-top:0.6rem;background:rgba(255,255,255,0.25);border:none;color:white;padding:0.3rem 0.8rem;border-radius:20px;cursor:pointer;font-size:0.8rem;">Show
+                        all ▼</button>
+                </div>
+                <div class="route-card"
+                    style="background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%); color: white; padding: 1.5rem; border-radius: 8px; margin-bottom: 1rem;">
+                    <h3 style="color: white; margin-bottom: 0.5rem;">🚆 Rail / Train Stations</h3>
+                    <p id="train-info" style="margin: 0 0 0.75rem 0;">Loading train information...</p>
+                    <div id="train-names"
+                        style="display:flex;flex-wrap:wrap;gap:0.4rem;max-height:120px;overflow-y:auto;"></div>
+                    <button id="train-toggle" onclick="toggleList('train')"
+                        style="display:none;margin-top:0.6rem;background:rgba(255,255,255,0.25);border:none;color:white;padding:0.3rem 0.8rem;border-radius:20px;cursor:pointer;font-size:0.8rem;">Show
+                        all ▼</button>
+                </div>
+            </div>
         </div>
 
         {% if recommendations %}
-        <div class="card" style="margin: 2rem 0; background: linear-gradient(135deg, #2193b0 0%, #197896 100%); color: white;">
+        <div class="card"
+            style="margin: 2rem 0; background: linear-gradient(135deg, #2193b0 0%, #197896 100%); color: white;">
             <h2 style="color: white; margin-bottom: 1.5rem;">🚗 Recommended Transport Modes</h2>
-            
+
             {% if recommendations.primary %}
             <div style="margin-bottom: 2rem;">
                 <h3 style="color: white; margin-bottom: 1rem;">⭐ Primary Recommendations</h3>
                 {% for rec in recommendations.primary %}
-                <div style="background: rgba(255,255,255,0.1); padding: 1.5rem; border-radius: 8px; margin-bottom: 1rem; backdrop-filter: blur(10px);">
+                <div
+                    style="background: rgba(255,255,255,0.1); padding: 1.5rem; border-radius: 8px; margin-bottom: 1rem; backdrop-filter: blur(10px);">
                     <h4 style="color: white; margin-bottom: 0.5rem;">{{ rec.mode }}</h4>
                     <p style="margin-bottom: 0.75rem; opacity: 0.9;">{{ rec.reason }}</p>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
@@ -74,12 +153,13 @@
                 {% endfor %}
             </div>
             {% endif %}
-            
+
             {% if recommendations.secondary %}
             <div style="margin-bottom: 2rem;">
                 <h3 style="color: white; margin-bottom: 1rem;">🔹 Alternative Options</h3>
                 {% for rec in recommendations.secondary %}
-                <div style="background: rgba(255,255,255,0.1); padding: 1.5rem; border-radius: 8px; margin-bottom: 1rem; backdrop-filter: blur(10px);">
+                <div
+                    style="background: rgba(255,255,255,0.1); padding: 1.5rem; border-radius: 8px; margin-bottom: 1rem; backdrop-filter: blur(10px);">
                     <h4 style="color: white; margin-bottom: 0.5rem;">{{ rec.mode }}</h4>
                     <p style="margin-bottom: 0.75rem; opacity: 0.9;">{{ rec.reason }}</p>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
@@ -106,7 +186,7 @@
                 {% endfor %}
             </div>
             {% endif %}
-            
+
             {% if recommendations.tips %}
             <div style="background: rgba(255,255,255,0.15); padding: 1.5rem; border-radius: 8px; margin-top: 1.5rem;">
                 <h3 style="color: white; margin-bottom: 1rem;">💡 Travel Tips</h3>
@@ -120,94 +200,163 @@
         </div>
         {% endif %}
 
-        <div class="transport-section">
-            <h4>🚌 Bus Routes</h4>
-            {% if bus_data and bus_data|length > 0 %}
-            <ul>
-                {% for row in bus_data %}
-                <li>
-                    {% if row is mapping %}
-                        {% for key, value in row.items() %}
-                            <strong>{{ key }}:</strong> {{ value }}<br>
-                        {% endfor %}
-                    {% else %}
-                        {{ row }}
-                    {% endif %}
-                </li>
-                {% endfor %}
-            </ul>
-            {% else %}
-            <p style="color: var(--text-light);">No bus data available.</p>
-            {% endif %}
-        </div>
-
-        <div class="transport-section">
-            <h4>🛣 Road Network</h4>
-            {% if road_data and road_data|length > 0 %}
-            <ul>
-                {% for row in road_data %}
-                <li>
-                    {% if row is mapping %}
-                        {% for key, value in row.items() %}
-                            <strong>{{ key }}:</strong> {{ value }}<br>
-                        {% endfor %}
-                    {% else %}
-                        {{ row }}
-                    {% endif %}
-                </li>
-                {% endfor %}
-            </ul>
-            {% else %}
-            <p style="color: var(--text-light);">No road data available.</p>
-            {% endif %}
-        </div>
-
-        <div class="transport-section">
-            <h4>🚦 Traffic Conditions</h4>
-            {% if traffic_data and traffic_data|length > 0 %}
-            <ul>
-                {% for row in traffic_data %}
-                <li>
-                    {% if row is mapping %}
-                        {% for key, value in row.items() %}
-                            <strong>{{ key }}:</strong> {{ value }}<br>
-                        {% endfor %}
-                    {% else %}
-                        {{ row }}
-                    {% endif %}
-                </li>
-                {% endfor %}
-            </ul>
-            {% else %}
-            <p style="color: var(--text-light);">No traffic data available.</p>
-            {% endif %}
-        </div>
-
-        <div class="transport-section">
-            <h4>🚆 Public Transport Usage</h4>
-            {% if commuter_data and commuter_data|length > 0 %}
-            <ul>
-                {% for row in commuter_data %}
-                <li>
-                    {% if row is mapping %}
-                        {% for key, value in row.items() %}
-                            <strong>{{ key }}:</strong> {{ value }}<br>
-                        {% endfor %}
-                    {% else %}
-                        {{ row }}
-                    {% endif %}
-                </li>
-                {% endfor %}
-            </ul>
-            {% else %}
-            <p style="color: var(--text-light);">No public transport data available.</p>
-            {% endif %}
-        </div>
         {% endif %}
     </div>
 
     <div id="chatbot"></div>
 
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        // Helper: render all stop-name chips into a container
+        function renderChips(containerId, stops) {
+            const el = document.getElementById(containerId);
+            if (!el) return;
+            el.innerHTML = '';
+            stops.forEach(stop => {
+                const chip = document.createElement('span');
+                chip.style.cssText = 'background:rgba(255,255,255,0.22);padding:0.25rem 0.65rem;border-radius:20px;font-size:0.78rem;cursor:pointer;white-space:nowrap;display:inline-block;transition:background 0.15s;margin:0;';
+                chip.textContent = stop.name;
+                chip.title = 'Click to find on map';
+                chip.onmouseenter = () => chip.style.background = 'rgba(255,255,255,0.45)';
+                chip.onmouseleave = () => chip.style.background = 'rgba(255,255,255,0.22)';
+                chip.onclick = () => {
+                    map.setView([stop.lat, stop.lon], 16);
+                    map.eachLayer(layer => {
+                        if (layer.getLatLng && layer.getLatLng().lat === stop.lat && layer.getLatLng().lng === stop.lon) {
+                            layer.openPopup();
+                        }
+                    });
+                };
+                el.appendChild(chip);
+            });
+        }
+
+        // Helper: toggle show-all / collapse for a chip list
+        function toggleList(type) {
+            const el = document.getElementById(type + '-names');
+            const btn = document.getElementById(type + '-toggle');
+            if (!el || !btn) return;
+            if (el.style.maxHeight === 'none') {
+                el.style.maxHeight = '120px';
+                btn.textContent = 'Show all \u25bc';
+            } else {
+                el.style.maxHeight = 'none';
+                btn.textContent = 'Collapse \u25b2';
+            }
+        }
+
+        {% if city %}
+        // Initialize Leaflet map (no tile layer yet — added after API responds)
+        var map = L.map('map', { center: [20, 0], zoom: 2 });
+
+        // Loading overlay
+        (function() {
+            var mapDiv = document.getElementById('map');
+            var ov = document.createElement('div');
+            ov.id = 'map-loading';
+            ov.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:0;z-index:9999;background:rgba(255,255,255,0.88);display:flex;align-items:center;justify-content:center;font-size:1.1rem;color:#2193b0;font-weight:600;border-radius:8px;';
+            ov.innerHTML = '\uD83D\uDDFA\uFE0F Loading live map data...';
+            mapDiv.style.position = 'relative';
+            mapDiv.appendChild(ov);
+        })();
+
+        var metroInfoEl = document.getElementById('metro-info');
+        var busInfoEl   = document.getElementById('bus-info');
+        var trainInfoEl = document.getElementById('train-info');
+        metroInfoEl.textContent = 'Loading live data from OpenStreetMap...';
+        busInfoEl.textContent   = 'Loading live data from OpenStreetMap...';
+        trainInfoEl.textContent = 'Loading live data from OpenStreetMap...';
+
+        fetch('/api/transport/live?city={{ city | urlencode }}')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var ov = document.getElementById('map-loading');
+                if (ov) ov.remove();
+
+                // Always add tile layer
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '\u00a9 <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                    maxZoom: 19
+                }).addTo(map);
+
+                if (!data.success) {
+                    metroInfoEl.textContent = data.error || 'No data found';
+                    busInfoEl.textContent = 'Try a different city name';
+                    trainInfoEl.textContent = '';
+                    return;
+                }
+
+                // Center map and force repaint
+                map.setView([data.lat, data.lon], 13);
+                setTimeout(function() { map.invalidateSize(); }, 150);
+
+                // City center marker
+                L.marker([data.lat, data.lon], {
+                    icon: L.divIcon({ className: '', html: '<div style="font-size:2rem">\uD83D\uDCCD</div>', iconSize: [30,30], iconAnchor: [15,30] })
+                }).addTo(map).bindPopup('<b>{{ city }}</b><br>City Center').openPopup();
+
+                // Sort stops into categories
+                var metroStops = [], busStops = [], tramStops = [], trainStops = [];
+                data.stops.forEach(function(stop) {
+                    var color, radius;
+                    if (stop.type === 'metro')      { color = '#e74c3c'; radius = 9; metroStops.push(stop); }
+                    else if (stop.type === 'train') { color = '#2ecc71'; radius = 9; trainStops.push(stop); }
+                    else if (stop.type === 'tram')  { color = '#9b59b6'; radius = 7; tramStops.push(stop); }
+                    else                            { color = '#3498db'; radius = 6; busStops.push(stop);   }
+                    var marker = L.circleMarker([stop.lat, stop.lon], {
+                        radius: radius, fillColor: color, color: '#fff', weight: 2, opacity: 1, fillOpacity: 0.85
+                    }).addTo(map);
+                    marker.bindPopup('<b>' + stop.icon + ' ' + stop.name + '</b>' + (stop.lines ? '<br><small>' + stop.lines + '</small>' : ''));
+                });
+
+                // Metro/Subway
+                metroInfoEl.textContent = metroStops.length > 0
+                    ? metroStops.length + ' metro/subway stations found in this area:'
+                    : 'No dedicated metro/subway stations tagged here. The city may use suburban rail as its main transit.';
+                renderChips('metro-names', metroStops);
+                if (metroStops.length > 12) {
+                    document.getElementById('metro-toggle').style.display = 'inline-block';
+                    document.getElementById('metro-names').style.maxHeight = '120px';
+                }
+
+                // Bus
+                busInfoEl.textContent = busStops.length > 0
+                    ? busStops.length + ' bus stops found in this area:'
+                    : 'No bus stops found in immediate city center.';
+                renderChips('bus-names', busStops);
+                if (busStops.length > 12) {
+                    document.getElementById('bus-toggle').style.display = 'inline-block';
+                    document.getElementById('bus-names').style.maxHeight = '120px';
+                }
+
+                // Rail/Train (with tram as fallback)
+                var railStops = trainStops.length > 0 ? trainStops : tramStops;
+                if (trainStops.length > 0) {
+                    trainInfoEl.textContent = trainStops.length + ' rail/train stations found in this area:';
+                } else if (tramStops.length > 0) {
+                    trainInfoEl.textContent = tramStops.length + ' tram stops found in this area:';
+                } else {
+                    trainInfoEl.textContent = 'No rail/train stations found immediately here. Check national rail websites for intercity services.';
+                }
+                renderChips('train-names', railStops);
+                if (railStops.length > 12) {
+                    document.getElementById('train-toggle').style.display = 'inline-block';
+                    document.getElementById('train-names').style.maxHeight = '120px';
+                }
+            })
+            .catch(function(err) {
+                var ov = document.getElementById('map-loading');
+                if (ov) ov.innerHTML = '\u26a0\ufe0f Could not load map data. Please try again.';
+                metroInfoEl.textContent = 'Could not load live transport data.';
+                busInfoEl.textContent   = 'Please check your internet connection.';
+                trainInfoEl.textContent = '';
+                console.error('Transport API error:', err);
+            });
+        {% endif %}
+    </script>
+
     <script src="/static/chatbot.js"></script>
 </body>
+
 </html>

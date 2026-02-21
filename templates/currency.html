@@ -1,17 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Currency Converter - TravelPlan</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
+
 <body>
     <header>
         <h1>✈️ TravelPlan</h1>
         <div>
             <span>Welcome, <strong>{{ user }}</strong></span>
-            <a href="/dashboard">Dashboard</a> | 
+            <a href="/dashboard">Dashboard</a> |
             <a href="/logout">Sign Out</a>
         </div>
     </header>
@@ -20,38 +22,39 @@
         <div class="card" style="margin-top: 2rem;">
             <h2 style="margin-bottom: 1.5rem;">💱 Currency Converter</h2>
             <form method="post" style="display: flex; flex-direction: column; gap: 1.5rem;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
                 <div>
-                    <label style="display: block; margin-bottom: 0.5rem; color: var(--text-dark); font-weight: 600;">Amount</label>
-                    <input 
-                        type="number" 
-                        name="amount" 
-                        placeholder="Enter amount" 
-                        step="0.01"
-                        required
-                        style="width: 100%;"
-                    >
+                    <label
+                        style="display: block; margin-bottom: 0.5rem; color: var(--text-dark); font-weight: 600;">Amount</label>
+                    <input type="number" name="amount" placeholder="Enter amount" step="0.01" required
+                        style="width: 100%;">
                 </div>
-                
+
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                     <div>
-                        <label style="display: block; margin-bottom: 0.5rem; color: var(--text-dark); font-weight: 600;">From Currency</label>
+                        <label
+                            style="display: block; margin-bottom: 0.5rem; color: var(--text-dark); font-weight: 600;">From
+                            Currency</label>
                         <select name="from_currency" required style="width: 100%;">
                             {% for code, name in currencies %}
                             <option value="{{ code }}">{{ code }} - {{ name }}</option>
                             {% endfor %}
                         </select>
                     </div>
-                    
+
                     <div>
-                        <label style="display: block; margin-bottom: 0.5rem; color: var(--text-dark); font-weight: 600;">To Currency</label>
+                        <label
+                            style="display: block; margin-bottom: 0.5rem; color: var(--text-dark); font-weight: 600;">To
+                            Currency</label>
                         <select name="to_currency" required style="width: 100%;">
                             {% for code, name in currencies %}
-                            <option value="{{ code }}" {% if code == "EUR" %}selected{% endif %}>{{ code }} - {{ name }}</option>
+                            <option value="{{ code }}" {% if code=="EUR" %}selected{% endif %}>{{ code }} - {{ name }}
+                            </option>
                             {% endfor %}
                         </select>
                     </div>
                 </div>
-                
+
                 <button type="submit">Convert</button>
             </form>
         </div>
@@ -79,4 +82,5 @@
 
     <script src="/static/chatbot.js"></script>
 </body>
+
 </html>

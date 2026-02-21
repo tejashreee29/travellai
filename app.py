@@ -9,7 +9,41 @@ import warnings
 import qrcode
 import io
 import base64
-from datetime import datetime
+from datetime import datetime, timedelta
+from functools import wraps
+import secrets
+
+# Security imports
+try:
+    from flask_limiter import Limiter
+    from flask_limiter.util import get_remote_address
+    LIMITER_AVAILABLE = True
+except ImportError:
+    LIMITER_AVAILABLE = False
+    print("⚠ Flask-Limiter not installed. Install with: pip install Flask-Limiter")
+
+try:
+    from flask_wtf.csrf import CSRFProtect
+    CSRF_AVAILABLE = True
+except ImportError:
+    CSRF_AVAILABLE = False
+    print("⚠ Flask-WTF not installed. Install with: pip install Flask-WTF")
+
+try:
+    from flask_talisman import Talisman
+    TALISMAN_AVAILABLE = True
+except ImportError:
+    TALISMAN_AVAILABLE = False
+    print("⚠ Flask-Talisman not installed. Install with: pip install flask-talisman")
+
+# Load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+    print("✓ Environment variables loaded from .env file")
+except ImportError:
+    print("⚠ python-dotenv not installed. Using system environment variables only.")
+    print("  Install with: pip install python-dotenv")
 
 # Suppress FutureWarning for deprecated google.generativeai
 warnings.filterwarnings('ignore', category=FutureWarning, message='.*google.generativeai.*')
@@ -24,18 +58,111 @@ except ImportError:
     genai = None
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "travelplan_secret_key_dev_change_in_production")
+
+# Use a stable secret key (from .env in production)
+SECRET_KEY = os.environ.get("SECRET_KEY", "travelplan_dev_secret_key_stable_fallback")
+if SECRET_KEY == "travelplan_dev_secret_key_stable_fallback":
+    print("⚠ WARNING: Using default SECRET_KEY. Set SECRET_KEY in .env for production!")
+
+app.secret_key = SECRET_KEY
+
+# Detect if running in production (HTTPS) or development (HTTP)
+IS_PRODUCTION = os.environ.get('FLASK_ENV') == 'production'
+
+# Security Configuration
+app.config.update(
+    # Session security
+    # SESSION_COOKIE_SECURE should be True only in production (HTTPS).
+    # Setting it True on HTTP (localhost) causes the browser to never send
+    # the session cookie, which breaks login completely.
+    SESSION_COOKIE_SECURE=IS_PRODUCTION,  # True only in production (HTTPS)
+    SESSION_COOKIE_HTTPONLY=True,  # Prevent JavaScript access to session cookie
+    SESSION_COOKIE_SAMESITE='Lax',  # CSRF protection
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=24),  # Session timeout
+    
+    # CSRF Protection
+    WTF_CSRF_ENABLED=True,
+    WTF_CSRF_TIME_LIMIT=None,  # No time limit for CSRF tokens
+    
+    # Security headers
+    SEND_FILE_MAX_AGE_DEFAULT=31536000,  # Cache static files for 1 year
+)
+
+# Initialize CSRF Protection
+if CSRF_AVAILABLE:
+    csrf = CSRFProtect(app)
+    print("✓ CSRF Protection enabled")
+else:
+    csrf = None
+
+def csrf_exempt_json_routes():
+    """Exempt JSON API routes from CSRF - called after routes are defined"""
+    if csrf:
+        # These routes receive JSON via fetch() and cannot include CSRF tokens easily
+        json_api_routes = [
+            'add_to_wallet', 'remove_from_wallet', 'save_destination',
+            'chatbot_api', 'chatbot'
+        ]
+        for route_name in json_api_routes:
+            try:
+                view = app.view_functions.get(route_name)
+                if view:
+                    csrf.exempt(view)
+            except Exception:
+                pass
+
+# Initialize Rate Limiter
+if LIMITER_AVAILABLE:
+    limiter = Limiter(
+        app=app,
+        key_func=get_remote_address,
+        default_limits=["200 per day", "50 per hour"],
+        storage_uri="memory://",
+    )
+    print("✓ Rate Limiting enabled")
+else:
+    limiter = None
+
+# Initialize Talisman for HTTPS enforcement (disabled in development)
+if TALISMAN_AVAILABLE and os.environ.get('FLASK_ENV') == 'production':
+    csp = {
+        'default-src': ["'self'"],
+        'script-src': ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net', 'https://unpkg.com'],
+        'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com', 'https://cdn.jsdelivr.net'],
+        'font-src': ["'self'", 'https://fonts.gstatic.com', 'data:'],
+        'img-src': ["'self'", 'data:', 'https:', 'http:'],
+        'connect-src': ["'self'", 'https://api.openweathermap.org', 'https://api.exchangerate-api.com'],
+    }
+    talisman = Talisman(
+        app,
+        force_https=True,
+        strict_transport_security=True,
+        content_security_policy=csp,
+        content_security_policy_nonce_in=['script-src']
+    )
+    print("✓ HTTPS enforcement enabled (Production mode)")
+else:
+    # In development, just add security headers without forcing HTTPS
+    @app.after_request
+    def add_security_headers(response):
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+        response.headers['X-XSS-Protection'] = '1; mode=block'
+        return response
+    print("✓ Security headers enabled (Development mode)")
 
 # API Keys (set these as environment variables or use free APIs)
 WEATHER_API_KEY = os.environ.get("WEATHER_API_KEY", "")
 CURRENCY_API_KEY = os.environ.get("CURRENCY_API_KEY", "")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+GOOGLE_MAPS_API_KEY = os.environ.get("GOOGLE_MAPS_API_KEY", "")
+HERE_API_KEY = os.environ.get("HERE_API_KEY", "")
 
 # Configure Gemini API if available
 if GEMINI_AVAILABLE and GEMINI_API_KEY and GEMINI_API_KEY.strip():
     try:
         genai.configure(api_key=GEMINI_API_KEY)
-        print("Gemini API configured successfully")
+        print("✓ Gemini API configured successfully")
     except Exception as e:
         print(f"Warning: Could not configure Gemini API: {e}")
         GEMINI_API_KEY = ""  # Clear invalid key
@@ -69,20 +196,28 @@ def index():
 # Login
 # ---------------------------------------------------
 @app.route("/login", methods=["GET", "POST"])
+@limiter.limit("5 per minute") if LIMITER_AVAILABLE else lambda f: f
 def login():
     error = None
 
     if request.method == "POST":
-        username = request.form["username"]
-        password = request.form["password"]
-
-        user = db.verify_user(username, password)
-        if user:
-            session["user_id"] = user["id"]
-            session["user"] = user["username"]
-            return redirect("/dashboard")
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+        
+        # Input validation
+        if not username or not password:
+            error = "Please provide both username and password"
         else:
-            error = "Invalid username or password"
+            user = db.verify_user(username, password)
+            if user:
+                # Regenerate session to prevent session fixation
+                session.clear()
+                session["user_id"] = user["id"]
+                session["user"] = user["username"]
+                session.permanent = True  # Use permanent session with timeout
+                return redirect("/dashboard")
+            else:
+                error = "Invalid username or password"
 
     return render_template("login.html", error=error)
 
@@ -90,21 +225,52 @@ def login():
 # Signup
 # ---------------------------------------------------
 @app.route("/signup", methods=["GET", "POST"])
+@limiter.limit("3 per hour") if LIMITER_AVAILABLE else lambda f: f
 def signup():
     error = None
 
     if request.method == "POST":
-        username = request.form["username"]
-        password = request.form["password"]
-        email = request.form.get("email", None)
-
-        user_id = db.create_user(username, password, email)
-        if user_id:
-            return redirect("/login")
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+        email = request.form.get("email", "").strip() or None
+        
+        # Input validation
+        if not username or not password:
+            error = "Please provide both username and password"
+        elif len(username) < 3:
+            error = "Username must be at least 3 characters long"
+        elif len(username) > 50:
+            error = "Username must be less than 50 characters"
+        elif not re.match(r'^[a-zA-Z0-9_]+$', username):
+            error = "Username can only contain letters, numbers, and underscores"
         else:
-            error = "Username already exists. Please choose a different one."
+            # Validate password strength
+            is_valid, message = db.validate_password_strength(password)
+            if not is_valid:
+                error = message
+            else:
+                user_id = db.create_user(username, password, email)
+                if user_id:
+                    flash("Account created successfully! Please log in.", "success")
+                    return redirect("/login")
+                else:
+                    error = "Username already exists. Please choose a different one."
 
     return render_template("signup.html", error=error)
+
+# ---------------------------------------------------
+# Chatbot Test Page
+# ---------------------------------------------------
+@app.route("/chatbot-test")
+def chatbot_test():
+    """Diagnostic page for chatbot troubleshooting"""
+    return render_template("chatbot_diagnostic.html")
+
+@app.route("/chatbot-debug")
+def chatbot_debug():
+    if "user_id" not in session:
+        return redirect("/login")
+    return render_template("chatbot_debug.html", user=session["user"])
 
 # ---------------------------------------------------
 # Logout
@@ -279,6 +445,87 @@ def save_destination():
 # ---------------------------------------------------
 # Itinerary Generator Page (Separate from Destinations)
 # ---------------------------------------------------
+def generate_gemini_itinerary(city, start_date, end_date):
+    """
+    Generate a rich, city-specific itinerary using Gemini AI.
+    Returns a list of day-dicts compatible with the itinerary template.
+    Falls back to the CSV-dataset generator if Gemini is unavailable.
+    """
+    from datetime import datetime
+    import json
+
+    GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+
+    if GEMINI_AVAILABLE and GEMINI_API_KEY:
+        try:
+            genai.configure(api_key=GEMINI_API_KEY)
+            start = datetime.strptime(start_date, "%Y-%m-%d")
+            end   = datetime.strptime(end_date,   "%Y-%m-%d")
+            days  = (end - start).days + 1
+
+            prompt = f"""You are a world-class travel guide writer creating a detailed, practical {days}-day itinerary for {city}.
+
+CRITICAL RULES — follow every single one:
+1. Every activity MUST name the EXACT place: specific museum, temple, market, street, neighbourhood, restaurant, café, viewpoint, or park. Never say "a local museum" — say "the National Museum of India" or "Chhatrapati Shivaji Maharaj Vastu Sangrahalaya".
+2. Every entry must include a PRACTICAL TIP: opening hours, entry fee, best time to visit, or how to get there by local transport.
+3. EVENING must always recommend a SPECIFIC restaurant or food street with the name, what dish to order, and why it's famous.
+4. Include EXTRA ACTIVITY ideas (1-2 short options) after the main plan for flexible travellers.
+5. Vary the days — no repeated places. Mix iconic sightseeing, local neighbourhood walks, food experiences, cultural/religious sites, markets, and nature/parks.
+6. Cover different parts of {city} across the days (e.g. different districts, areas).
+7. All places MUST actually exist in {city}. Do not invent places.
+
+Format each day's morning, afternoon, and evening as a flowing paragraph (2-4 sentences), NOT bullet points.
+
+Return ONLY valid JSON — no markdown fences, no extra text — in this exact format:
+{{
+  "days": [
+    {{
+      "day": 1,
+      "morning": "Visit [EXACT PLACE NAME]. [What to see/do there]. [Practical tip: hours/entry/transport]. Extra: [1-2 nearby quick options].",
+      "afternoon": "Head to [EXACT PLACE NAME] in [NEIGHBOURHOOD/AREA]. [What makes it special]. [Practical tip]. Try also: [nearby option].",
+      "evening": "Dinner at [EXACT RESTAURANT/FOOD STREET NAME]. Order [SPECIFIC DISH(ES)] — [why it's famous or what makes it unique]. [Location or how to find it].",
+      "highlights": "[Theme of the day in one punchy line]"
+    }}
+  ]
+}}"""
+
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            response = model.generate_content(prompt)
+            raw = response.text.strip()
+
+            # Strip markdown code fences if present
+            if raw.startswith("```"):
+                raw = raw.split("```")[1]
+                if raw.startswith("json"):
+                    raw = raw[4:]
+            raw = raw.strip()
+
+            data = json.loads(raw)
+            result = []
+            for i, d in enumerate(data.get("days", [])[:days]):
+                date_str = (start + __import__('datetime').timedelta(days=i)).strftime("%Y-%m-%d")
+                result.append({
+                    "Day": d.get("day", i + 1),
+                    "Date": date_str,
+                    "City": city,
+                    "Morning": d.get("morning", ""),
+                    "Afternoon": d.get("afternoon", ""),
+                    "Evening": d.get("evening", ""),
+                    "Highlights": d.get("highlights", ""),
+                    "ai_powered": True
+                })
+
+            if result:
+                print(f"✓ Gemini generated {len(result)}-day itinerary for {city}")
+                return result
+
+        except Exception as e:
+            print(f"Gemini itinerary error: {e} — falling back to dataset/template")
+
+    # Fallback to CSV-dataset or template generator
+    return generate_itinerary(city, start_date, end_date)
+
+
 @app.route("/itinerary", methods=["GET", "POST"])
 def itinerary():
     if "user_id" not in session:
@@ -286,7 +533,8 @@ def itinerary():
     
     user_id = session["user_id"]
     itinerary = None
-    city = None
+    # Pre-fill city from URL query param (e.g., when coming from Destinations page)
+    city = request.args.get("city", "").strip() or None
     error = None
     
     if request.method == "POST":
@@ -324,7 +572,7 @@ def itinerary():
                         # Generate itinerary
                         print(f"Generating itinerary for {city} from {start_date} to {end_date}")
                         try:
-                            itinerary = generate_itinerary(city, start_date, end_date)
+                            itinerary = generate_gemini_itinerary(city, start_date, end_date)
                             
                             if itinerary and len(itinerary) > 0:
                                 # Save to travel history
@@ -454,6 +702,13 @@ def transport():
             
             # Generate intelligent transport recommendations
             recommendations = get_transport_recommendations(city)
+            
+            # Try to get AI-generated tips using Gemini
+            ai_tips = get_ai_transport_tips(city)
+            if ai_tips:
+                # Replace generic tips with AI-generated ones
+                recommendations["tips"] = ai_tips
+                print(f"✓ Using AI-generated transport tips for {city}")
 
     return render_template(
         "transport.html",
@@ -594,6 +849,207 @@ def get_transport_recommendations(city):
     ]
     
     return recommendations
+
+# ---------------------------------------------------
+# Enhanced Transport API Integration
+# ---------------------------------------------------
+
+def get_real_time_transit(origin, destination, city=None):
+    """Get real-time transit directions using Google Maps or HERE Maps API"""
+    transit_data = None
+    
+    # Try Google Maps Directions API first
+    if GOOGLE_MAPS_API_KEY:
+        try:
+            url = "https://maps.googleapis.com/maps/api/directions/json"
+            params = {
+                "origin": origin,
+                "destination": destination,
+                "mode": "transit",
+                "alternatives": "true",
+                "key": GOOGLE_MAPS_API_KEY
+            }
+            response = requests.get(url, params=params, timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("status") == "OK" and data.get("routes"):
+                    transit_data = parse_google_transit_data(data)
+                    print(f"✓ Google Maps transit data retrieved for {origin} to {destination}")
+                else:
+                    print(f"Google Maps API returned status: {data.get('status')}")
+            else:
+                print(f"Google Maps API error: {response.status_code}")
+        except Exception as e:
+            print(f"Google Maps API error: {e}")
+    
+    # Fallback to HERE Maps API
+    if not transit_data and HERE_API_KEY:
+        try:
+            url = "https://transit.router.hereapi.com/v8/routes"
+            params = {
+                "origin": origin,
+                "destination": destination,
+                "return": "polyline,travelSummary,typicalDuration",
+                "apiKey": HERE_API_KEY
+            }
+            response = requests.get(url, params=params, timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("routes"):
+                    transit_data = parse_here_transit_data(data)
+                    print(f"✓ HERE Maps transit data retrieved for {origin} to {destination}")
+        except Exception as e:
+            print(f"HERE Maps API error: {e}")
+    
+    return transit_data
+
+def parse_google_transit_data(data):
+    """Parse Google Maps transit API response"""
+    routes = []
+    
+    for route in data.get("routes", [])[:3]:  # Get top 3 routes
+        legs = route.get("legs", [])
+        if not legs:
+            continue
+            
+        leg = legs[0]
+        steps = []
+        
+        for step in leg.get("steps", []):
+            step_info = {
+                "mode": step.get("travel_mode", "WALKING"),
+                "instructions": step.get("html_instructions", ""),
+                "distance": step.get("distance", {}).get("text", ""),
+                "duration": step.get("duration", {}).get("text", ""),
+            }
+            
+            # Add transit details if available
+            if "transit_details" in step:
+                transit = step["transit_details"]
+                step_info["transit"] = {
+                    "line": transit.get("line", {}).get("short_name", ""),
+                    "vehicle": transit.get("line", {}).get("vehicle", {}).get("type", ""),
+                    "departure_stop": transit.get("departure_stop", {}).get("name", ""),
+                    "arrival_stop": transit.get("arrival_stop", {}).get("name", ""),
+                    "num_stops": transit.get("num_stops", 0),
+                    "departure_time": transit.get("departure_time", {}).get("text", ""),
+                    "arrival_time": transit.get("arrival_time", {}).get("text", ""),
+                }
+            
+            steps.append(step_info)
+        
+        routes.append({
+            "summary": route.get("summary", "Route"),
+            "distance": leg.get("distance", {}).get("text", ""),
+            "duration": leg.get("duration", {}).get("text", ""),
+            "steps": steps,
+            "start_address": leg.get("start_address", ""),
+            "end_address": leg.get("end_address", ""),
+        })
+    
+    return {
+        "routes": routes,
+        "status": "success"
+    }
+
+def parse_here_transit_data(data):
+    """Parse HERE Maps transit API response"""
+    routes = []
+    
+    for route in data.get("routes", [])[:3]:
+        sections = route.get("sections", [])
+        steps = []
+        
+        for section in sections:
+            step_info = {
+                "mode": section.get("type", "transit"),
+                "distance": f"{section.get('travelSummary', {}).get('length', 0) / 1000:.1f} km",
+                "duration": f"{section.get('travelSummary', {}).get('duration', 0) // 60} min",
+            }
+            
+            if section.get("transport"):
+                transport = section["transport"]
+                step_info["transit"] = {
+                    "line": transport.get("name", ""),
+                    "mode": transport.get("mode", ""),
+                }
+            
+            steps.append(step_info)
+        
+        summary = route.get("sections", [{}])[0].get("travelSummary", {})
+        routes.append({
+            "summary": "HERE Route",
+            "distance": f"{summary.get('length', 0) / 1000:.1f} km",
+            "duration": f"{summary.get('duration', 0) // 60} min",
+            "steps": steps,
+        })
+    
+    return {
+        "routes": routes,
+        "status": "success"
+    }
+
+def get_traffic_data(city):
+    """Get real-time traffic data for a city"""
+    traffic_info = {
+        "status": "unavailable",
+        "message": "Real-time traffic data requires API key"
+    }
+    
+    # Try Google Maps Traffic API
+    if GOOGLE_MAPS_API_KEY:
+        try:
+            # Geocode city to get coordinates
+            geocode_url = "https://maps.googleapis.com/maps/api/geocode/json"
+            params = {
+                "address": city,
+                "key": GOOGLE_MAPS_API_KEY
+            }
+            response = requests.get(geocode_url, params=params, timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("results"):
+                    location = data["results"][0]["geometry"]["location"]
+                    traffic_info = {
+                        "status": "available",
+                        "location": location,
+                        "message": "Traffic data available via Google Maps",
+                        "note": "Use Google Maps embed for live traffic visualization"
+                    }
+        except Exception as e:
+            print(f"Traffic data error: {e}")
+    
+    return traffic_info
+
+# API endpoint for real-time transit
+@app.route("/api/transit", methods=["POST"])
+@limiter.limit("10 per minute") if LIMITER_AVAILABLE else lambda f: f
+def api_transit():
+    """API endpoint for real-time transit directions"""
+    if "user_id" not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    data = request.json
+    origin = data.get("origin")
+    destination = data.get("destination")
+    city = data.get("city")
+    
+    if not origin or not destination:
+        return jsonify({"error": "Origin and destination required"}), 400
+    
+    transit_data = get_real_time_transit(origin, destination, city)
+    
+    if transit_data:
+        return jsonify(transit_data)
+    else:
+        return jsonify({
+            "status": "error",
+            "message": "No transit data available. Please configure Google Maps or HERE Maps API key."
+        }), 503
+
 
 # ---------------------------------------------------
 # Weather Page
@@ -1067,6 +1523,117 @@ def wallet():
     return render_template("wallet.html", wallet_items=wallet_items, user=session["user"])
 
 # ---------------------------------------------------
+# Live Transport API using free OpenStreetMap Overpass API
+# ---------------------------------------------------
+@app.route("/api/transport/live")
+def transport_live():
+    """Fetch real transport stops for a city using the free Overpass API"""
+    if "user_id" not in session:
+        return jsonify({"error": "Not logged in"}), 401
+
+    city = request.args.get("city", "").strip()
+    if not city:
+        return jsonify({"error": "City name required"}), 400
+
+    try:
+        # Step 1: Geocode city to get bounding box via Nominatim
+        geocode_url = "https://nominatim.openstreetmap.org/search"
+        geocode_params = {
+            "q": city,
+            "format": "json",
+            "limit": 1,
+            "featuretype": "city"
+        }
+        geo_resp = requests.get(geocode_url, params=geocode_params,
+                                headers={"User-Agent": "TravelPlanAI/1.0"}, timeout=8)
+        geo_data = geo_resp.json()
+
+        if not geo_data:
+            return jsonify({"error": f"City '{city}' not found", "stops": []})
+
+        loc = geo_data[0]
+        lat = float(loc["lat"])
+        lon = float(loc["lon"])
+        # Build a bounding box ~5km around city center
+        delta = 0.05
+        bbox = f"{lat-delta},{lon-delta},{lat+delta},{lon+delta}"
+
+        # Step 2: Query Overpass for transit stops (subway, bus, train, tram)
+        overpass_url = "https://overpass-api.de/api/interpreter"
+        # Slightly larger bbox for dense cities like Mumbai
+        delta2 = 0.07
+        bbox2 = f"{lat-delta2},{lon-delta2},{lat+delta2},{lon+delta2}"
+        overpass_query = f"""
+        [out:json][timeout:20];
+        (
+          node["railway"="station"]({bbox2});
+          node["railway"="subway_entrance"]({bbox2});
+          node["railway"="subway_station"]({bbox2});
+          node["highway"="bus_stop"]({bbox2});
+          node["amenity"="bus_station"]({bbox2});
+          node["railway"="tram_stop"]({bbox2});
+        );
+        out body 100;
+        """
+        ov_resp = requests.post(overpass_url, data={"data": overpass_query}, timeout=25)
+        ov_data = ov_resp.json()
+
+        stops = []
+        seen = set()
+        for element in ov_data.get("elements", []):
+            tags = element.get("tags", {})
+            name = tags.get("name") or tags.get("name:en", "")
+            if not name or name in seen:
+                continue
+            seen.add(name)
+
+            railway = tags.get("railway", "")
+            station_tag = tags.get("station", "")
+            subway_tag = tags.get("subway", "")
+
+            # Determine transport type properly:
+            # Metro/Subway = explicitly tagged subway, or subway_entrance/subway_station
+            # Train/Rail   = generic railway=station that is NOT a subway
+            # Tram         = tram_stop
+            # Bus          = bus_stop or bus_station
+            if railway in ("subway_entrance", "subway_station") or station_tag == "subway" or subway_tag == "yes":
+                stop_type = "metro"
+                icon = "🚇"
+            elif railway == "tram_stop":
+                stop_type = "tram"
+                icon = "🚋"
+            elif railway == "station":
+                stop_type = "train"
+                icon = "�"
+            else:
+                stop_type = "bus"
+                icon = "🚌"
+
+            stops.append({
+                "name": name,
+                "type": stop_type,
+                "icon": icon,
+                "lat": element["lat"],
+                "lon": element["lon"],
+                "lines": tags.get("ref", "") or tags.get("network", "") or tags.get("operator", "")
+            })
+
+        return jsonify({
+            "success": True,
+            "city": city,
+            "lat": lat,
+            "lon": lon,
+            "stops": stops[:100]  # limit to 100 stops
+        })
+
+    except requests.Timeout:
+        return jsonify({"error": "Transport data request timed out. Please try again."}), 504
+    except Exception as e:
+        print(f"Transport live API error: {e}")
+        return jsonify({"error": "Could not fetch live transport data"}), 500
+
+
+# ---------------------------------------------------
 # Add to Wallet API
 # ---------------------------------------------------
 @app.route("/add_to_wallet", methods=["POST"])
@@ -1352,29 +1919,131 @@ Assistant response:"""
         traceback.print_exc()  # Print full traceback for debugging
         return jsonify({"reply": "I'm sorry, I encountered an error. Please try again later."})
 
+# ---------------------------------------------------
+# AI Chatbot Route (Gemini-powered)
+# ---------------------------------------------------
+@app.route("/chatbot", methods=["POST"])
+def chatbot():
+    """AI-powered travel chatbot using Gemini"""
+    if "user_id" not in session:
+        return jsonify({"response": "Please log in to use the chatbot."}), 401
+    
+    try:
+        data = request.json
+        user_message = data.get("message", "").strip()
+        
+        if not user_message:
+            return jsonify({"response": "Please enter a message."})
+        
+        # Try to use Gemini AI
+        if GEMINI_AVAILABLE and GEMINI_API_KEY:
+            try:
+                model = genai.GenerativeModel('gemini-pro')
+                
+                # Create context-aware prompt
+                prompt = f"""You are an expert travel assistant helping users plan their trips. 
+Be friendly, concise, and helpful. Keep responses under 150 words.
+
+User question: {user_message}
+
+Provide practical travel advice. If asked about specific destinations, include:
+- Best time to visit
+- Must-see attractions
+- Transportation tips
+- Budget considerations
+- Local customs or tips
+
+If the question is not travel-related, politely redirect to travel topics."""
+
+                response = model.generate_content(prompt)
+                ai_response = response.text
+                
+                return jsonify({"response": ai_response})
+                
+            except Exception as e:
+                print(f"Gemini API error: {e}")
+                # Fall back to rule-based responses
+                return jsonify({"response": get_fallback_response(user_message)})
+        else:
+            # Use fallback responses if Gemini not available
+            return jsonify({"response": get_fallback_response(user_message)})
+            
+    except Exception as e:
+        print(f"Chatbot error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"response": "Sorry, I encountered an error. Please try again."})
+
 def get_fallback_response(msg):
     """Fallback response when Gemini API is not available"""
     msg_lower = msg.lower()
     
-    if "destination" in msg_lower or "place" in msg_lower:
-        return "Go to Destinations and select your travel type and budget."
-    elif "food" in msg_lower:
-        return "Open the Food page to explore local cuisines."
-    elif "transport" in msg_lower:
-        return "Check the Transport page for metro, bus and taxi options."
-    elif "itinerary" in msg_lower:
-        return "Use the Destinations page to generate your travel itinerary."
-    elif "budget" in msg_lower:
-        return "Select your budget while choosing destinations."
-    elif "currency" in msg_lower or "exchange" in msg_lower or "convert" in msg_lower:
-        return "Use the Currency Converter page to convert between different currencies with real-time exchange rates."
-    elif "weather" in msg_lower or "climate" in msg_lower or "temperature" in msg_lower:
-        return "Use the Weather page to check current weather conditions and forecasts for any city worldwide."
+    # Enhanced fallback responses
+    if "destination" in msg_lower or "place" in msg_lower or "where" in msg_lower:
+        return "I can help you find the perfect destination! Go to the Destinations page and select your travel type (adventure, beach, culture, etc.) and budget. Our AI will recommend the best places for you."
+    elif "food" in msg_lower or "cuisine" in msg_lower or "eat" in msg_lower:
+        return "Explore local cuisines on the Food page! You can search by city to discover authentic dishes and popular restaurants. Each destination has unique culinary experiences waiting for you."
+    elif "transport" in msg_lower or "metro" in msg_lower or "bus" in msg_lower or "taxi" in msg_lower:
+        return "Check the Transport page for detailed information about metro systems, bus networks, and taxi options. I provide city-specific recommendations with maps and routes."
+    elif "itinerary" in msg_lower or "plan" in msg_lower or "schedule" in msg_lower:
+        return "Use the Destinations page to generate a personalized day-by-day itinerary! Just select a city and your travel dates, and I'll create a detailed plan with activities for morning, afternoon, and evening."
+    elif "budget" in msg_lower or "cost" in msg_lower or "price" in msg_lower or "cheap" in msg_lower or "expensive" in msg_lower:
+        return "Budget planning is easy! Choose low, medium, or high budget when selecting destinations. I'll recommend places that match your budget. Generally: Low ($20-50/day), Medium ($50-150/day), High ($150+/day)."
+    elif "currency" in msg_lower or "exchange" in msg_lower or "convert" in msg_lower or "money" in msg_lower:
+        return "Use the Currency Converter page to convert between different currencies with real-time exchange rates. It supports USD, EUR, GBP, JPY, INR, and many more currencies."
+    elif "weather" in msg_lower or "climate" in msg_lower or "temperature" in msg_lower or "rain" in msg_lower:
+        return "Check the Weather page for current weather conditions and forecasts for any city worldwide. It shows temperature, humidity, wind speed, and weather conditions to help you pack appropriately."
+    elif "best time" in msg_lower or "when to visit" in msg_lower or "season" in msg_lower:
+        return "The best time to visit depends on the destination! Generally: Europe (May-Sep), Southeast Asia (Nov-Mar), North America (Jun-Sep), South America (May-Oct). Check destination details for specific recommendations."
+    elif "visa" in msg_lower or "passport" in msg_lower:
+        return "Visa requirements vary by country and nationality. Always check with the embassy or consulate of your destination country at least 2-3 months before travel. Some countries offer visa-on-arrival or e-visas."
+    elif "safety" in msg_lower or "safe" in msg_lower or "dangerous" in msg_lower:
+        return "Safety varies by destination. Research your destination, register with your embassy, keep copies of documents, avoid displaying valuables, and stay in well-lit areas. Check travel advisories before booking."
+    elif "packing" in msg_lower or "pack" in msg_lower or "luggage" in msg_lower:
+        return "Packing tips: Check weather forecast, pack versatile clothing, bring essential medications, keep valuables in carry-on, and leave room for souvenirs. Don't forget chargers, adapters, and travel documents!"
+    elif "hello" in msg_lower or "hi" in msg_lower or "hey" in msg_lower:
+        return "Hello! I'm your AI travel assistant. I can help you with destination recommendations, itinerary planning, transport options, weather info, currency conversion, and travel tips. What would you like to know?"
+    elif "thank" in msg_lower:
+        return "You're welcome! Have a wonderful trip! Feel free to ask if you need any more travel advice. 🌍✈️"
     else:
-        return "I can help with destinations, food, transport, weather, currency conversion, and travel planning."
+        return "I'm your AI travel assistant! I can help with: 🗺️ Destination recommendations, 📅 Itinerary planning, 🚇 Transport options, 🌤️ Weather info, 💱 Currency conversion, 🍽️ Food suggestions, and 💡 Travel tips. What would you like to know?"
+
+# ---------------------------------------------------
+# Enhanced Transport with Gemini AI
+# ---------------------------------------------------
+def get_ai_transport_tips(city):
+    """Get AI-generated transport tips using Gemini"""
+    if not GEMINI_AVAILABLE or not GEMINI_API_KEY:
+        return None
+    
+    try:
+        model = genai.GenerativeModel('gemini-pro')
+        prompt = f"""Provide 5 specific, practical transport tips for travelers in {city}. 
+Keep each tip to one sentence. Focus on:
+- Payment methods
+- Peak hours to avoid
+- Best transport apps
+- Money-saving tricks
+- Safety tips
+
+Format as a simple list."""
+
+        response = model.generate_content(prompt)
+        tips_text = response.text.strip()
+        
+        # Parse the response into a list
+        tips = [tip.strip().lstrip('•-*123456789. ') for tip in tips_text.split('\n') if tip.strip()]
+        return tips[:7]  # Return up to 7 tips
+        
+    except Exception as e:
+        print(f"Gemini transport tips error: {e}")
+        return None
 
 # ---------------------------------------------------
 # Run Server
 # ---------------------------------------------------
 if __name__ == "__main__":
-    app.run(debug=True)
+    # Exempt JSON API routes from CSRF (they use fetch + JSON, can't include CSRF tokens)
+    csrf_exempt_json_routes()
+    # Use port 8080 to avoid conflict with macOS AirPlay Receiver (port 5000)
+    app.run(debug=True, host='0.0.0.0', port=8080)

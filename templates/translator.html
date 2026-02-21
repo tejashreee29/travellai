@@ -22,6 +22,7 @@
         <div class="card" style="margin-top: 2rem;">
             <h2 style="margin-bottom: 1.5rem;">🌐 Language Translator</h2>
             <form method="post" style="display: flex; flex-direction: column; gap: 1.5rem;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
                 <div>
                     <label
                         style="display: block; margin-bottom: 0.5rem; color: var(--text-dark); font-weight: 600;">Text

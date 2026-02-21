@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - TravelPlan</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
+
 <body class="center" style="background: var(--primary-gradient);">
 
     <div class="card auth">
@@ -13,34 +15,30 @@
         <p style="color: var(--text-light); margin-bottom: 1.5rem;">Sign in to continue your travel planning</p>
 
         {% if error %}
-            <div class="error">{{ error }}</div>
+        <div class="error">{{ error }}</div>
         {% endif %}
 
         <form method="post">
-            <input 
-                type="text" 
-                name="username" 
-                placeholder="Username" 
-                required
-                autocomplete="username"
-            >
-            <input 
-                type="password" 
-                name="password" 
-                placeholder="Password" 
-                required
-                autocomplete="current-password"
-            >
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+            <input type="text" name="username" placeholder="Username" required autocomplete="username">
+            <input type="password" name="password" placeholder="Password" required autocomplete="current-password">
             <button type="submit">Login</button>
         </form>
 
         <p style="text-align: center; margin-top: 1.5rem; color: var(--text-light);">
-            New user? <a href="/signup" style="color: var(--primary-color); text-decoration: none; font-weight: 600;">Sign up</a>
+            New user? <a href="/signup"
+                style="color: var(--primary-color); text-decoration: none; font-weight: 600;">Sign up</a>
         </p>
         <p style="text-align: center; margin-top: 0.5rem;">
             <a href="/" style="color: var(--text-light); text-decoration: none;">← Back to Home</a>
         </p>
     </div>
 
+    <!-- Chatbot Container -->
+    <div id="chatbot"></div>
+
+    <!-- Load Chatbot Script -->
+    <script src="/static/chatbot.js"></script>
 </body>
+
 </html>
