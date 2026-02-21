@@ -1,6 +1,6 @@
 # ✈️ TravelPlan AI
 
-> An intelligent travel planning web application powered by Machine Learning and Google Gemini AI — helping users discover destinations, plan itineraries, manage travel budgets, and explore real-time transport options.
+> A smart travel planning web app built with Machine Learning and Google Gemini AI. Plan trips, discover destinations, track budgets, and explore real-time transport — all in one place.
 
 ---
 
