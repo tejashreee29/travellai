@@ -158,17 +158,6 @@ travellai/
 
 ---
 
-## 📸 Screenshots
-
-| Feature | Preview |
-|---|---|
-| 🏠 Dashboard | Personalized travel hub |
-| 🗺️ Transport Map | Live station markers with clickable name chips |
-| 📅 AI Itinerary | Day-by-day plans with real place names |
-| 💰 Wallet | Multi-currency budget tracker |
-
----
-
 ## 👩‍💻 Author
 
 **Tejashree Suvarna**  
